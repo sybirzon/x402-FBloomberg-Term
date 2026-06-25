@@ -3,6 +3,7 @@
 # Bloomberg Terminal — x402 Micropayments Demo
 # Team setup script
 #
+# Repo:     https://github.com/sybirzon/x402-Bloomberg-Term
 # Run once from the repo root:  bash scripts/setup-bloomberg.sh
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,21 @@ ok "Node.js $(node --version)"
 command -v npm >/dev/null 2>&1 || die "npm not found."
 ok "npm $(npm --version)"
 
-# ── 2. Install dependencies ───────────────────────────────────────────────────
+command -v git >/dev/null 2>&1 || die "git not found."
+ok "git $(git --version | awk '{print $3}')"
+
+# ── 2. Clone x402-facilitator if not present ─────────────────────────────────
+hr
+if [[ ! -d "$ROOT/x402-facilitator" ]]; then
+  info "Cloning x402-facilitator from github.com/fireblocks/x402-facilitator..."
+  git clone --depth 1 https://github.com/fireblocks/x402-facilitator.git "$ROOT/x402-facilitator" \
+    || die "Failed to clone x402-facilitator. Check your internet connection."
+  ok "x402-facilitator cloned"
+else
+  ok "x402-facilitator already present"
+fi
+
+# ── 3. Install dependencies ───────────────────────────────────────────────────
 hr
 info "Installing dependencies for all services..."
 

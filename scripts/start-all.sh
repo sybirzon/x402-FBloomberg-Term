@@ -1,8 +1,17 @@
 #!/bin/bash
+# Bloomberg Terminal — x402 Micropayments Demo
+# Repo: https://github.com/sybirzon/x402-Bloomberg-Term
+#
 # Starts facilitator, merchant, and dashboard in the background.
 # Logs go to /tmp/bloomberg-*.log — tail them to debug.
+# Run setup first if you haven't: bash scripts/setup-bloomberg.sh
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+if [[ ! -d "$ROOT/x402-facilitator" ]]; then
+  echo "x402-facilitator not found — run bash scripts/setup-bloomberg.sh first"
+  exit 1
+fi
 
 start_service() {
   local name=$1 dir=$2 cmd=$3 port=$4
