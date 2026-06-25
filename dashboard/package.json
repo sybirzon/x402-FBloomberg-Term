@@ -1,0 +1,31 @@
+{
+  "name": "x402-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo -ne \"\\033]0;Dashboard\\007\" && vite",
+    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
+    "postinstall": "rm -rf node_modules/@dynamic-labs-sdk/metamask && cp -r stubs/dynamic-metamask node_modules/@dynamic-labs-sdk/metamask"
+  },
+  "dependencies": {
+    "@dynamic-labs-sdk/client": "^1.14.0",
+    "@dynamic-labs-sdk/evm": "^1.14.0",
+    "@dynamic-labs-sdk/react-hooks": "^1.8.0",
+    "@tanstack/react-query": "^5.101.0",
+    "ethers": "6.16.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "viem": "2.45.3"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.4",
+    "typescript": "5.9.3",
+    "vite": "6.3.5"
+  },
+  "overrides": {
+    "@dynamic-labs-sdk/metamask": "file:./stubs/dynamic-metamask"
+  }
+}

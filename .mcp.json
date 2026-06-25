@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "bloomberg-payments": {
+      "command": "/usr/local/bin/node",
+      "args": [
+        "/Users/sybirzon/Documents/Code/payments/example/agent/node_modules/tsx/dist/cli.mjs",
+        "/Users/sybirzon/Documents/Code/payments/example/agent/src/mcp-server.mts"
+      ],
+      "cwd": "/Users/sybirzon/Documents/Code/payments/example/agent",
+      "env": {
+        "NODE_NO_WARNINGS": "1"
+      }
+    }
+  }
+}
