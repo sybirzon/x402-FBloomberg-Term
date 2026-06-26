@@ -64,17 +64,30 @@ for dir in x402-facilitator merchant agent dashboard; do
   fi
 done
 
+# The merchant imports @x402/express via file:../x402-facilitator/packages/x402-express.
+# That package ships TypeScript sources only — npm install links the source dir into
+# merchant/node_modules but doesn't build dist/, so ts-node fails to compile the merchant
+# at runtime ("Cannot find module '@x402/express'"). Build it here, once.
+info "Building @x402/express workspace package..."
+(cd "$ROOT/x402-facilitator" && npm run build --workspace=@x402/express --silent) \
+  || die "Failed to build @x402/express. Run manually: cd x402-facilitator && npm run build --workspace=@x402/express"
+ok "@x402/express built"
+
 # ── 3. Facilitator — Fireblocks credentials ───────────────────────────────────
 hr
 echo -e "${BOLD}Step 1 of 4 — Fireblocks credentials (x402-facilitator)${RESET}"
 echo ""
 echo "You need a Fireblocks account with:"
-echo "  • A vault named exactly  ${BOLD}402${RESET}"
-echo "  • An API key (from Fireblocks console → Settings → API Keys)"
+echo "  • A vault (any name) with Base Sepolia USDC (USDC_BASECHAIN_ETH_TEST5_8SH8) enabled"
+echo "  • The numeric ${BOLD}vault ID${RESET} for that vault (Console → Vault → click the vault → shown in URL/details)"
+echo "  • An API key UUID (from Fireblocks console → Settings → API Keys)"
 echo "  • The RSA private key .pem for that API key"
 echo ""
-echo "Faucets for testnet funds (fund the 402 vault deposit address):"
-echo "  Base Sepolia ETH:  https://www.coinbase.com/faucets/base-ethereum-goerli-faucet"
+echo "Note: Fireblocks vault IDs are immutable numbers (0, 1, 2, …). The vault NAME"
+echo "      is just a display label and is not used by the API."
+echo ""
+echo "Faucets for testnet funds (fund the vault's Base Sepolia USDC deposit address):"
+echo "  Base Sepolia ETH:  https://www.coinbase.com/faucets/base-ethereum-sepolia-faucet"
 echo "  Base Sepolia USDC: https://faucet.circle.com"
 echo ""
 
@@ -97,6 +110,12 @@ echo ""
 read -rp "  Fireblocks API key: " FB_API_KEY
 [[ -z "$FB_API_KEY" ]] && die "API key is required."
 
+# ── 3b2. Fireblocks vault ID (numeric, immutable) ─────────────────────────────
+echo ""
+read -rp "  Fireblocks vault ID (numeric, e.g. 0 or 2): " FB_VAULT_ID
+[[ -z "$FB_VAULT_ID" ]] && die "Vault ID is required."
+[[ ! "$FB_VAULT_ID" =~ ^[0-9]+$ ]] && die "Vault ID must be a non-negative integer (got: '$FB_VAULT_ID')."
+
 # ── 3c. PEM file path ─────────────────────────────────────────────────────────
 echo ""
 echo "  Paste the full path to your Fireblocks RSA private key .pem file,"
@@ -117,10 +136,10 @@ fi
 
 # ── 3d. Write facilitator.json ────────────────────────────────────────────────
 info "Writing config/facilitator.json..."
-python3 - "$CONFIG_FILE" "$FB_API_KEY" <<'PYEOF'
+python3 - "$CONFIG_FILE" "$FB_API_KEY" "$FB_VAULT_ID" <<'PYEOF'
 import json, sys
 
-config_path, api_key = sys.argv[1], sys.argv[2]
+config_path, api_key, vault_id = sys.argv[1], sys.argv[2], sys.argv[3]
 
 config = {
   "tenant_id": "default",
@@ -147,7 +166,7 @@ config = {
       "fireblocks": {
         "api_key": api_key,
         "api_secret_path": "./secrets/fireblocks.pem",
-        "receiver_vault": "402",
+        "receiver_vault": vault_id,
         "base_url": "https://api.fireblocks.io",
         "deposit_address_cache": {}
       },
@@ -182,54 +201,116 @@ echo -e "${BOLD}Step 2 of 4 — Mint API key and products${RESET}"
 echo ""
 info "Starting facilitator briefly to mint credentials via CLI..."
 
-(cd "$FACILITATOR_DIR" && npm run dev > /tmp/bloomberg-setup-facilitator.log 2>&1) &
+# Run the facilitator WITHOUT nodemon during setup. nodemon watches files and
+# restarts the server on every change to config/facilitator.json — and every CLI
+# admin call (mint token, mint key, add product) mutates that file. The next CLI
+# call then hits a server in mid-restart → "fetch failed". ts-node directly gives
+# us a stable server for the duration of Step 2.
+(cd "$FACILITATOR_DIR" && ./node_modules/.bin/ts-node src/index.ts > /tmp/bloomberg-setup-facilitator.log 2>&1) &
 FAC_PID=$!
-sleep 5
 
-# Verify it started
-if ! lsof -ti :3001 >/dev/null 2>&1; then
+# Cleanup trap — runs on success, failure, and Ctrl+C alike, so any subsequent
+# die() never leaves an orphan facilitator listening on :3001.
+cleanup_facilitator() {
+  if [[ -n "${FAC_PID:-}" ]]; then
+    pkill -P "$FAC_PID" 2>/dev/null || true
+    kill "$FAC_PID" 2>/dev/null || true
+  fi
+  local pids
+  pids=$(lsof -ti :3001 2>/dev/null || true)
+  [[ -n "$pids" ]] && kill $pids 2>/dev/null || true
+  sleep 1
+  pids=$(lsof -ti :3001 2>/dev/null || true)
+  [[ -n "$pids" ]] && kill -9 $pids 2>/dev/null || true
+}
+trap cleanup_facilitator EXIT
+
+# Poll for readiness instead of a flat sleep — npm → nodemon → tsx → node can take
+# 10–20s on a cold start (esbuild + first ts-node compile).
+info "Waiting for facilitator on :3001 (up to 30s)..."
+READY=0
+for _ in $(seq 1 30); do
+  if lsof -ti :3001 >/dev/null 2>&1; then
+    # Port is open — confirm it's actually serving HTTP, not just half-bound
+    HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 http://localhost:3001/ 2>/dev/null || echo "000")
+    case "$HTTP_CODE" in
+      2*|3*|4*|5*) READY=1; break ;;
+    esac
+  fi
+  # If the subshell died before becoming ready, bail with the log
+  if ! kill -0 "$FAC_PID" 2>/dev/null && ! lsof -ti :3001 >/dev/null 2>&1; then
+    cat /tmp/bloomberg-setup-facilitator.log
+    die "Facilitator process exited before becoming ready. Log above."
+  fi
+  sleep 1
+done
+if [[ "$READY" -ne 1 ]]; then
   cat /tmp/bloomberg-setup-facilitator.log
-  die "Facilitator failed to start. Check the log above."
+  die "Facilitator did not respond on :3001 within 30s. Log above."
 fi
-ok "Facilitator running (pid $FAC_PID)"
+ok "Facilitator ready (subshell pid $FAC_PID)"
+
+# Mint a short-lived admin JWT — the facilitator's CLI requires X402_ADMIN_TOKEN
+# to authorize keys/products operations. The token is signed with the local HS256
+# secret in secrets/jwt-hs256.key (scaffolded earlier) and verified by this same
+# running facilitator, so no external trust is needed.
+info "Minting admin token for CLI..."
+ADMIN_OUT=$(cd "$FACILITATOR_DIR" && npm run --silent setup:admin-token -- --preset full 2>&1) \
+  || { echo "$ADMIN_OUT"; die "Failed to mint admin token (see output above)"; }
+# Pull the JWT (three base64url segments) out of the wizard's output
+X402_ADMIN_TOKEN=$(echo "$ADMIN_OUT" | grep -oE 'eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+' | head -1)
+[[ -z "$X402_ADMIN_TOKEN" ]] && { echo "$ADMIN_OUT"; die "Could not parse admin JWT from output above."; }
+export X402_ADMIN_TOKEN
+ok "Admin token minted (…${X402_ADMIN_TOKEN: -8})"
+
+# The CLI's default URL is http://localhost:3000 but the facilitator listens on :3001
+# (see x402-facilitator/.env). Point the CLI at the right port for all subsequent calls.
+export X402_URL="http://localhost:3001"
 
 # Mint merchant API key
+# Note 1: 2>&1 (not 2>/dev/null) so CLI errors are captured into MINT_OUT and shown to the user
+#         if mint fails — important if a future facilitator release renames a flag.
+# Note 2: --yes on npx so the "Need to install ... Ok to proceed? (y)" prompt doesn't
+#         hang silently the first time tsx isn't cached.
 info "Minting merchant API key..."
-MINT_OUT=$(cd "$FACILITATOR_DIR" && npx tsx src/cli/index.ts keys create \
-  --scopes process-payments --label merchant 2>/dev/null) || die "Failed to mint API key"
+MINT_OUT=$(cd "$FACILITATOR_DIR" && npx --yes tsx src/cli/index.ts keys create \
+  --scopes process-payments --label merchant 2>&1) \
+  || { echo "$MINT_OUT"; die "Failed to mint API key (see CLI output above)"; }
 
 MERCHANT_KEY=$(echo "$MINT_OUT" | grep -oE 'x402_[a-zA-Z0-9_]+' | head -1)
-[[ -z "$MERCHANT_KEY" ]] && die "Could not parse API key from: $MINT_OUT"
+[[ -z "$MERCHANT_KEY" ]] && { echo "$MINT_OUT"; die "Could not parse API key from CLI output above."; }
 ok "Merchant API key: ${MERCHANT_KEY:0:16}…"
 
 # Create Premium product ($0.01)
 info "Creating Premium product (\$0.01 USDC)..."
-PREMIUM_OUT=$(cd "$FACILITATOR_DIR" && npx tsx src/cli/index.ts products add \
+PREMIUM_OUT=$(cd "$FACILITATOR_DIR" && npx --yes tsx src/cli/index.ts products add \
   --name Premium \
   --endpoint /premium \
   --asset USDC_BASECHAIN_ETH_TEST5_8SH8 \
-  --price 10000 \
-  --mechanism eip-3009 2>/dev/null) || die "Failed to create Premium product"
+  --price 10000 2>&1) \
+  || { echo "$PREMIUM_OUT"; die "Failed to create Premium product (see CLI output above)"; }
 
 PREMIUM_ID=$(echo "$PREMIUM_OUT" | grep -oE 'prod_[a-zA-Z0-9]+' | head -1)
-[[ -z "$PREMIUM_ID" ]] && die "Could not parse Premium product_id from: $PREMIUM_OUT"
+[[ -z "$PREMIUM_ID" ]] && { echo "$PREMIUM_OUT"; die "Could not parse Premium product_id from CLI output above."; }
 ok "Premium product: $PREMIUM_ID"
 
 # Create SPCX product ($0.02)
 info "Creating SPCX product (\$0.02 USDC)..."
-SPCX_OUT=$(cd "$FACILITATOR_DIR" && npx tsx src/cli/index.ts products add \
+SPCX_OUT=$(cd "$FACILITATOR_DIR" && npx --yes tsx src/cli/index.ts products add \
   --name SPCX \
   --endpoint /spcx \
   --asset USDC_BASECHAIN_ETH_TEST5_8SH8 \
-  --price 20000 \
-  --mechanism eip-3009 2>/dev/null) || die "Failed to create SPCX product"
+  --price 20000 2>&1) \
+  || { echo "$SPCX_OUT"; die "Failed to create SPCX product (see CLI output above)"; }
 
 SPCX_ID=$(echo "$SPCX_OUT" | grep -oE 'prod_[a-zA-Z0-9]+' | head -1)
-[[ -z "$SPCX_ID" ]] && die "Could not parse SPCX product_id from: $SPCX_OUT"
+[[ -z "$SPCX_ID" ]] && { echo "$SPCX_OUT"; die "Could not parse SPCX product_id from CLI output above."; }
 ok "SPCX product: $SPCX_ID"
 
-# Stop temporary facilitator
-kill $FAC_PID 2>/dev/null; wait $FAC_PID 2>/dev/null || true
+# Stop temporary facilitator (the same logic the EXIT trap would run anyway)
+cleanup_facilitator
+wait "$FAC_PID" 2>/dev/null || true
+FAC_PID=""  # trap is now a no-op
 ok "Facilitator stopped"
 
 # ── 5. Merchant .env ──────────────────────────────────────────────────────────
@@ -261,20 +342,25 @@ echo ""
 read -rp "  Choice [1/2]: " WALLET_CHOICE
 
 if [[ "$WALLET_CHOICE" == "2" ]]; then
-  read -rp "  Private key (0x...): " AGENT_PK
+  # -s: silent (don't echo the key to the terminal / scrollback)
+  read -rsp "  Private key (0x..., input hidden): " AGENT_PK
+  echo ""
   [[ -z "$AGENT_PK" ]] && die "Private key required."
 else
   info "Generating new wallet..."
-  AGENT_PK=$(node -e "const {Wallet}=require('ethers'); const w=Wallet.createRandom(); console.log(w.privateKey+' '+w.address)")
-  AGENT_ADDR=$(echo "$AGENT_PK" | awk '{print $2}')
-  AGENT_PK=$(echo "$AGENT_PK" | awk '{print $1}')
+  # node -e needs to run from a dir whose node_modules contains ethers.
+  # agent/ has it (installed at the top of this script). The repo root does not.
+  AGENT_OUT=$(cd "$ROOT/agent" && node -e "const {Wallet}=require('ethers'); const w=Wallet.createRandom(); console.log(w.privateKey+' '+w.address)") \
+    || die "Failed to generate agent wallet — is ethers installed in agent/?"
+  AGENT_ADDR=$(echo "$AGENT_OUT" | awk '{print $2}')
+  AGENT_PK=$(echo "$AGENT_OUT"  | awk '{print $1}')
   echo ""
   warn "New wallet generated!"
   echo "  Address:     ${AGENT_ADDR}"
   echo "  Private key: ${AGENT_PK}"
   echo ""
   echo "  Fund this address with Base Sepolia ETH and USDC before running purchases:"
-  echo "    ETH:  https://www.coinbase.com/faucets/base-ethereum-goerli-faucet"
+  echo "    ETH:  https://www.coinbase.com/faucets/base-ethereum-sepolia-faucet"
   echo "    USDC: https://faucet.circle.com"
   echo ""
   read -rp "  Press Enter to continue..."
@@ -288,9 +374,50 @@ ENV
 ok "agent/.env written"
 
 # ── 7. Dashboard ──────────────────────────────────────────────────────────────
-if [[ -f "$ROOT/dashboard/.env.example" ]] && [[ ! -f "$ROOT/dashboard/.env" ]]; then
-  cp "$ROOT/dashboard/.env.example" "$ROOT/dashboard/.env"
-  ok "dashboard/.env written from example"
+hr
+echo -e "${BOLD}Dashboard — optional Dynamic embedded wallet${RESET}"
+echo ""
+echo "The dashboard has an optional Dynamic.xyz embedded-wallet panel."
+echo "If you don't supply a Dynamic Environment ID, the panel is hidden and the"
+echo "core x402 demo (local-key agent → merchant → facilitator) still works."
+echo ""
+echo "To get one (optional): sign up at https://app.dynamic.xyz → Developer → API."
+echo ""
+read -rp "  Dynamic Environment ID (or press Enter to skip): " DYNAMIC_ENV_ID
+
+if [[ -n "$DYNAMIC_ENV_ID" ]]; then
+  cat > "$ROOT/dashboard/.env" <<ENV
+# Real Dynamic Environment ID — embedded-wallet panel will be active.
+VITE_DYNAMIC_ENV_ID=${DYNAMIC_ENV_ID}
+ENV
+  ok "dashboard/.env written with Dynamic env ID (…${DYNAMIC_ENV_ID: -6})"
+else
+  cat > "$ROOT/dashboard/.env" <<'ENV'
+# No Dynamic Environment ID supplied — embedded-wallet panel hidden.
+# To enable, uncomment the line below and paste your env ID from app.dynamic.xyz.
+# VITE_DYNAMIC_ENV_ID=your-environment-id-here
+ENV
+  ok "dashboard/.env written (Dynamic panel disabled — VITE_DYNAMIC_ENV_ID commented out)"
+fi
+chmod 600 "$ROOT/dashboard/.env"
+
+# ── 8. .mcp.json — substitute the local agent dir into the template ───────────
+hr
+info "Generating .mcp.json from .mcp.json.template..."
+if [[ ! -f "$ROOT/.mcp.json.template" ]]; then
+  warn ".mcp.json.template missing — Claude Code MCP integration will not work until restored."
+else
+  # Use python rather than sed to avoid escaping headaches with absolute paths.
+  python3 - "$ROOT/.mcp.json.template" "$ROOT/agent" "$ROOT/.mcp.json" <<'PYEOF'
+import sys
+template_path, agent_dir, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(template_path) as f:
+    text = f.read()
+text = text.replace("__AGENT_DIR__", agent_dir)
+with open(out_path, "w") as f:
+    f.write(text)
+PYEOF
+  ok ".mcp.json generated (agent dir: $ROOT/agent)"
 fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
