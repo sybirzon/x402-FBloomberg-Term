@@ -1,0 +1,13 @@
+{
+  "name": "@dynamic-labs-sdk/metamask",
+  "version": "1.14.0",
+  "description": "Local stub — MetaMask connector not used in this project (email/WaaS only)",
+  "main": "./index.cjs",
+  "module": "./index.mjs",
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "default": "./index.cjs"
+    }
+  }
+}
