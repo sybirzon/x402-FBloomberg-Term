@@ -25,7 +25,7 @@
 
 import 'dotenv/config';
 import crypto from 'crypto';
-import { ActivityLog } from './activity.js';
+import { ActivityLog } from './activity';
 import canonicalize from 'canonicalize';
 import {
   Wallet,

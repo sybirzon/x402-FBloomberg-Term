@@ -163,8 +163,7 @@ async function purchaseEndpoint(endpoint: 'premium' | 'spcx'): Promise<string> {
   const first = await fetch(url);
   if (first.status === 200) {
     push('merchant', '✓', '200 OK — access granted (no payment needed)');
-    lines.push((await first.text()).slice(0, 500));
-    return lines.join('\n');
+    return log.text() + '\n' + (await first.text()).slice(0, 500);
   }
   if (first.status !== 402) {
     push('merchant', '✗', `Unexpected status ${first.status}`);
@@ -209,7 +208,7 @@ async function purchaseEndpoint(endpoint: 'premium' | 'spcx'): Promise<string> {
   const text = await second.text();
   if (second.status !== 200) {
     push('merchant', '✗', `Payment rejected — HTTP ${second.status}: ${text.slice(0, 200)}`);
-    return lines.join('\n');
+    return log.text();
   }
 
   let data: Record<string, unknown> | null = null;
@@ -221,17 +220,18 @@ async function purchaseEndpoint(endpoint: 'premium' | 'spcx'): Promise<string> {
   });
 
   // ── Formatted table output ─────────────────────────────────────────
+  const tableLines: string[] = [];
   if (data && endpoint === 'premium' && Array.isArray((data as any).assets)) {
     const assets = (data as any).assets as Array<Record<string, unknown>>;
     const ts = (data as any).timestamp as string | undefined;
-    lines.push('');
-    lines.push(`Bloomberg Terminal — Premium Analytics${ts ? `  (${ts})` : ''}`);
-    lines.push('');
-    lines.push('Symbol | Price      | 24h Chg | Volume 24h | Mkt Cap | High    | Low     | RSI  | Sentiment');
-    lines.push('-------|------------|---------|------------|---------|---------|---------|------|----------');
+    tableLines.push('');
+    tableLines.push(`Bloomberg Terminal — Premium Analytics${ts ? `  (${ts})` : ''}`);
+    tableLines.push('');
+    tableLines.push('Symbol | Price      | 24h Chg | Volume 24h | Mkt Cap | High    | Low     | RSI  | Sentiment');
+    tableLines.push('-------|------------|---------|------------|---------|---------|---------|------|----------');
     for (const a of assets) {
       const chg = Number(a.change24h);
-      lines.push(
+      tableLines.push(
         `${String(a.symbol).padEnd(6)} | ` +
         `$${Number(a.price).toLocaleString().padEnd(9)} | ` +
         `${chg >= 0 ? '▲' : '▼'} ${Math.abs(chg).toFixed(2).padStart(5)}% | ` +
@@ -244,14 +244,8 @@ async function purchaseEndpoint(endpoint: 'premium' | 'spcx'): Promise<string> {
       );
     }
   } else if (data) {
-    lines.push(JSON.stringify(data, null, 2).slice(0, 1200));
+    tableLines.push(JSON.stringify(data, null, 2).slice(0, 1200));
   }
-
-  push('facilitator', '→', 'Settlement pending — awaiting Fireblocks contract call', {
-    http: `[RPC] eth_sendRawTransaction → Base Sepolia (eip155:${CHAIN_ID})\n\nUSDC.transferWithAuthorization(\n  from:        ${signed.authorization.from},\n  to:          ${signed.authorization.to},\n  value:       ${signed.authorization.value} (${amountHuman} USDC),\n  validAfter:  ${signed.authorization.validAfter},\n  validBefore: ${signed.authorization.validBefore},\n  nonce:       ${signed.authorization.nonce},\n  signature:   ${signed.signature}\n)\n\nContract: ${USDC_ADDRESS}\nAwaiting Fireblocks signing request…`,
-    rpc: { method: 'eth_sendRawTransaction', network: `eip155:${CHAIN_ID}`, contract: USDC_ADDRESS },
-    authorization: signed.authorization,
-  });
 
   // ── Push to dashboard ──────────────────────────────────────────────
   if (data) {
@@ -265,7 +259,9 @@ async function purchaseEndpoint(endpoint: 'premium' | 'spcx'): Promise<string> {
     } catch { /* non-fatal */ }
   }
 
-  return log.text();
+  return tableLines.length > 0
+    ? log.text() + '\n' + tableLines.join('\n')
+    : log.text();
 }
 
 // ── MCP server ─────────────────────────────────────────────────────────

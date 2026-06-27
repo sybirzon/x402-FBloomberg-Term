@@ -62,7 +62,7 @@ type AgentStep = { message: string; status: 'info' | 'success' | 'error'; source
 const agentDataStore = new Map<string, { data: unknown; ts: number; steps?: AgentStep[]; payer?: string }>();
 
 interface SettlementRecord {
-  success: boolean;
+  status: 'submitted' | 'confirmed' | 'failed';
   txHash: string | null;
   error: string | null;
   endpoint: string;
@@ -86,7 +86,7 @@ function logPaymentRequired(path: string, body: any): void {
   log(`  mechanisms: ${body?.accepts?.map((a: any) => a.extra?.assetTransferMethod).join(', ') ?? '?'}`);
 }
 
-function logTxInitiation(req: express.Request): void {
+function logTxInitiation(req: express.Request, res: express.Response): void {
   const sig = req.headers['payment-signature'];
   if (typeof sig !== 'string') return;
   try {
@@ -107,6 +107,7 @@ function logTxInitiation(req: express.Request): void {
       log(`  auth.validBefore: ${auth.validBefore ?? '?'}`);
       log(`  auth.nonce:       ${auth.nonce ?? '?'}`);
     }
+    if (payer && payer !== '?') res.locals.payer = payer.toLowerCase();
   } catch {
     log(`[merchant] could not decode payment-signature`);
   }
@@ -174,7 +175,7 @@ app.use((req, res, next) => {
   const silent = ['/agent-data', '/settlement-status'];
   if (!silent.includes(req.path)) console.log(`[merchant] request: ${req.method} ${req.path}`);
   if (!GATED_PATHS.has(req.path)) return next();
-  logTxInitiation(req);
+  logTxInitiation(req, res);
   if (typeof req.headers['payment-signature'] === 'string') return next();
   // Intercept res.json to capture the 402 body
   const origJson = res.json.bind(res);
@@ -197,12 +198,20 @@ app.use(
       { endpoint: '/spcx', productId: SPCX_PRODUCT_ID },
     ],
     onSettlement: (o) => {
+      // Fall back to the submitted-state entry if the facilitator didn't return a payer
+      let payer: string | undefined = o.payer?.toLowerCase();
+      if (!payer) {
+        for (const [k, v] of settlementStore.entries()) {
+          if (v.status === 'submitted' && v.endpoint === o.endpoint) { payer = k; break; }
+        }
+      }
+
       console.log(
-        `[merchant] ${o.success ? '✓ settled' : '✗ failed'} ${o.endpoint} payer=${o.payer ?? '?'} tx=${o.txHash ?? '(none)'} err=${o.error ?? ''}`,
+        `[merchant] ${o.success ? '✓ settled' : '✗ failed'} ${o.endpoint} payer=${payer ?? '?'} tx=${o.txHash ?? '(none)'} err=${o.error ?? ''}`,
       );
-      if (o.payer) {
-        settlementStore.set(o.payer.toLowerCase(), {
-          success: o.success ?? false,
+      if (payer) {
+        settlementStore.set(payer, {
+          status: o.success ? 'confirmed' : 'failed',
           txHash: o.txHash ?? null,
           error: o.error ?? null,
           endpoint: o.endpoint,
@@ -213,13 +222,24 @@ app.use(
   }),
 );
 
-// ── Log 200 OK returned to the agent after successful payment ────────
+// ── Log 200 OK and mark settlement as submitted ──────────────────────
 app.use((req, res, next) => {
   if (!GATED_PATHS.has(req.path)) return next();
   const origJson = res.json.bind(res);
   res.json = (body: unknown) => {
     if (res.statusCode === 200) {
       log(`\n[merchant → agent] 200 OK — payment accepted, serving ${req.path}`);
+      const payer = res.locals.payer as string | undefined;
+      if (payer) {
+        settlementStore.set(payer, {
+          status: 'submitted',
+          txHash: null,
+          error: null,
+          endpoint: req.path,
+          ts: Date.now(),
+        });
+        log(`[merchant] settlement submitted — payer=${payer} endpoint=${req.path} → awaiting Fireblocks signature`);
+      }
     }
     return origJson(body);
   };
@@ -237,7 +257,7 @@ app.get('/settlement-status', (req, res) => {
     return;
   }
   res.json({
-    status: r.success ? 'confirmed' : 'failed',
+    status: r.status,
     txHash: r.txHash,
     error: r.error,
     endpoint: r.endpoint,

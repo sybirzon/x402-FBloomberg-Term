@@ -277,6 +277,7 @@ export default function App() {
     return new Promise((resolve) => {
       let attempts = 0;
       let done = false;
+      let seenSubmitted = false;
       const finish = () => { done = true; resolve(); };
 
       const poll = async () => {
@@ -285,10 +286,24 @@ export default function App() {
         try {
           const sr = await fetch(`${MERCHANT_URL}/settlement-status?payer=${payerAddress}`);
           const status = await sr.json() as { status: string; txHash?: string | null; error?: string | null; endpoint?: string; ts?: number };
+
+          if (status.status === 'submitted' && !seenSubmitted) {
+            seenSubmitted = true;
+            addLog('Settlement pending — Fireblocks signing request sent', 'info', {
+              source: 'facilitator',
+              details: {
+                http: `[Fireblocks] CONTRACT_CALL submitted → PENDING_SIGNATURE\n\nstatus:   awaiting_signature\npayer:    ${payerAddress}\nendpoint: ${status.endpoint ?? '?'}\nAction:   Approve the signing request in your Fireblocks mobile app or console`,
+              },
+            });
+          }
+
           if (status.status === 'failed' && (status.ts == null || status.ts >= startedAt - 2000)) {
             addLog(`Settlement failed — ${status.error ?? 'rejected'}`, 'error', {
               source: 'facilitator',
-              details: status,
+              details: {
+                http: `[Fireblocks] CONTRACT_CALL rejected\n\nstatus:   failed\nreason:   ${status.error ?? 'rejected'}${status.txHash ? `\ntxHash:   ${status.txHash}` : ''}${status.endpoint ? `\nendpoint: ${status.endpoint}` : ''}\npayer:    ${payerAddress}`,
+                ...status,
+              },
             });
             finish();
             return;
@@ -298,7 +313,12 @@ export default function App() {
             if (payerOverride === undefined) setUsdcBalance(bal);
             addLog(`Settlement confirmed — balance: ${Number(bal).toFixed(4)} USDC`, 'success', {
               source: 'facilitator',
-              details: { ...status, balanceBefore, balanceAfter: bal },
+              details: {
+                http: `[Fireblocks] CONTRACT_CALL confirmed ✓\n\nstatus:      confirmed${status.txHash ? `\ntxHash:      ${status.txHash}` : ''}${status.endpoint ? `\nendpoint:    ${status.endpoint}` : ''}\npayer:       ${payerAddress}\nbalanceBefore: ${balanceBefore}\nbalanceAfter:  ${bal}`,
+                ...status,
+                balanceBefore,
+                balanceAfter: bal,
+              },
             });
             onSettled(bal);
             finish();
@@ -315,7 +335,11 @@ export default function App() {
         if (bal !== null && bal !== balanceBefore) {
           addLog(`Settlement confirmed — balance: ${Number(bal).toFixed(4)} USDC`, 'success', {
             source: 'facilitator',
-            details: { balanceBefore, balanceAfter: bal },
+            details: {
+              http: `[On-chain] Balance change detected on Base Sepolia\n\nUSDC.balanceOf(${payerAddress})\n\nbalanceBefore: ${balanceBefore}\nbalanceAfter:  ${bal}\nnetwork:       eip155:84532`,
+              balanceBefore,
+              balanceAfter: bal,
+            },
           });
           onSettled(bal);
           finish();
@@ -323,7 +347,12 @@ export default function App() {
           attempts++;
           setTimeout(() => { void poll(); }, 3000);
         } else {
-          addLog('Settlement timed out — check Fireblocks for approval status', 'error', { source: 'facilitator' });
+          addLog('Settlement timed out — check Fireblocks for approval status', 'error', {
+            source: 'facilitator',
+            details: {
+              http: `[Fireblocks] CONTRACT_CALL timed out\n\nNo confirmation received after ${attempts * 3}s\npayer:   ${payerAddress}\nAction:  Open Fireblocks console and approve the pending CONTRACT_CALL`,
+            },
+          });
           finish();
         }
       };
