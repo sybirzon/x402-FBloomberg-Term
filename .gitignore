@@ -17,6 +17,11 @@
 # ── Facilitator config (written at setup time — contains Fireblocks API key) ──
 x402-facilitator/config/facilitator.json
 
+# ── OSS facilitator clone (re-cloned by setup-bloomberg.sh on every fresh setup) ──
+# Don't ship the cloned source as part of this repo — keep the canonical source
+# upstream at github.com/fireblocks/x402-facilitator.
+/x402-facilitator/
+
 # ── Database files ────────────────────────────────────────────────────────────
 **/data/
 **/*.db
@@ -32,3 +37,11 @@ Thumbs.db
 .vscode/
 .idea/
 .history/
+
+# ── Personal runbooks (contain workspace-specific UUIDs / addresses) ──────────
+bloombergterminal_x402_demo.md
+*.local.md
+
+# ── MCP config — generated from .mcp.json.template by setup-bloomberg.sh ──────
+# Contains machine-specific absolute paths. The committable source is .mcp.json.template.
+.mcp.json
