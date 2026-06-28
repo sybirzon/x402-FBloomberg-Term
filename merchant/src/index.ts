@@ -198,11 +198,11 @@ app.use(
       { endpoint: '/spcx', productId: SPCX_PRODUCT_ID },
     ],
     onSettlement: (o) => {
-      // Fall back to the submitted-state entry if the facilitator didn't return a payer
+      // Fall back to any non-confirmed entry for this endpoint if payer not provided
       let payer: string | undefined = o.payer?.toLowerCase();
       if (!payer) {
         for (const [k, v] of settlementStore.entries()) {
-          if (v.status === 'submitted' && v.endpoint === o.endpoint) { payer = k; break; }
+          if (v.endpoint === o.endpoint && v.status !== 'confirmed') { payer = k; break; }
         }
       }
 

@@ -61,6 +61,8 @@ export default function App() {
     : null;
 
   const dynamicSignFnRef = useRef<Eip3009SignFn | null>(null);
+  const premiumSettlementGen = useRef(0);
+  const spcxSettlementGen = useRef(0);
   const [usdcBalance, setUsdcBalance] = useState<string | null>(null);
   const [ethBalance, setEthBalance] = useState<string | null>(null);
   const [freeData, setFreeData] = useState<FreeData | null>(null);
@@ -194,8 +196,10 @@ export default function App() {
             lastPremiumTs = premium.ts;
             setPremiumData(premium.data as PremiumData);
             if (premium.payer) {
+              premiumSettlementGen.current += 1;
+              const gen = premiumSettlementGen.current;
               const bal = await getUsdcBalance(premium.payer, USDC_ADDRESS, BASE_SEPOLIA_RPC).catch(() => null);
-              void pollUntilSettled(bal, () => {}, premium.payer, premium.ts);
+              void pollUntilSettled(bal, () => {}, premium.payer, premium.ts, () => premiumSettlementGen.current === gen);
             }
           }
         }
@@ -213,8 +217,10 @@ export default function App() {
             lastSpcxTs = spcx.ts;
             setSpcxData(spcx.data as SpcxData);
             if (spcx.payer) {
+              spcxSettlementGen.current += 1;
+              const gen = spcxSettlementGen.current;
               const bal = await getUsdcBalance(spcx.payer, USDC_ADDRESS, BASE_SEPOLIA_RPC).catch(() => null);
-              void pollUntilSettled(bal, () => {}, spcx.payer, spcx.ts);
+              void pollUntilSettled(bal, () => {}, spcx.payer, spcx.ts, () => spcxSettlementGen.current === gen);
             }
           }
         }
@@ -282,6 +288,7 @@ export default function App() {
     onSettled: (newBalance: string) => void,
     payerOverride?: string,
     startedAt: number = Date.now(),
+    isActive: () => boolean = () => true,
   ): Promise<void> {
     const payerAddress = payerOverride ?? wallet!.address;
     return new Promise((resolve) => {
@@ -291,7 +298,7 @@ export default function App() {
       const finish = () => { done = true; resolve(); };
 
       const poll = async () => {
-        if (done) return;
+        if (done || !isActive()) { finish(); return; }
 
         try {
           const sr = await fetch(`${MERCHANT_URL}/settlement-status?payer=${payerAddress}`);
