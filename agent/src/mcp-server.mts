@@ -149,6 +149,13 @@ async function signEip3009(
 async function purchaseEndpoint(endpoint: 'premium' | 'spcx'): Promise<string> {
   const url = `${MERCHANT_BASE}/${endpoint}`;
   const log = new ActivityLog();
+  log.streamTo((steps) => {
+    fetch(`${MERCHANT_BASE}/agent-data`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: `/${endpoint}`, data: null, steps, payer: wallet.address, partial: true }),
+    }).catch(() => {});
+  });
   const push = (
     source: Parameters<ActivityLog['push']>[0],
     status: Parameters<ActivityLog['push']>[1],
@@ -262,7 +269,7 @@ async function purchaseEndpoint(endpoint: 'premium' | 'spcx'): Promise<string> {
     tableLines.push(JSON.stringify(data, null, 2).slice(0, 1200));
   }
 
-  // ── Push to dashboard ──────────────────────────────────────────────
+  // ── Push final data to dashboard (steps already streamed incrementally) ──
   if (data) {
     try {
       await fetch(`${MERCHANT_BASE}/agent-data`, {
@@ -270,7 +277,6 @@ async function purchaseEndpoint(endpoint: 'premium' | 'spcx'): Promise<string> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: `/${endpoint}`, data, steps: log.steps(), payer: wallet.address }),
       });
-      push('agent', '✓', 'Dashboard updated');
     } catch { /* non-fatal */ }
   }
 

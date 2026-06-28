@@ -752,6 +752,13 @@ async function main() {
 
   const log = new ActivityLog();
   const merchantUrl = new URL(MERCHANT_URL);
+  log.streamTo((steps) => {
+    fetch(`${merchantUrl.origin}/agent-data`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: merchantUrl.pathname, data: null, steps, payer: wallet.address, partial: true }),
+    }).catch(() => {});
+  });
 
   // 1. Hit the merchant without a signature — expect 402.
   log.push('agent', '→', `GET ${merchantUrl.pathname}`, {

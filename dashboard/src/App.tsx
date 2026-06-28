@@ -168,6 +168,8 @@ export default function App() {
   useEffect(() => {
     let lastPremiumTs = 0;
     let lastSpcxTs = 0;
+    let lastPremiumStepCount = 0;
+    let lastSpcxStepCount = 0;
     const id = setInterval(async () => {
       try {
         const [premiumRes, spcxRes] = await Promise.all([
@@ -177,39 +179,46 @@ export default function App() {
         type AgentStep = { message: string; status: 'info' | 'success' | 'error'; source: 'agent' | 'merchant' | 'facilitator'; details?: unknown };
         type AgentEntry = { data: unknown; ts?: number; steps?: AgentStep[]; payer?: string };
         const premium = await premiumRes.json() as AgentEntry;
-        if (!premium.data) {
-          if (lastPremiumTs !== 0) { lastPremiumTs = 0; setPremiumData(null); }
-        } else if (premium.ts && premium.ts > lastPremiumTs) {
-          lastPremiumTs = premium.ts;
-          setPremiumData(premium.data as PremiumData);
-          if (premium.steps?.length) {
-            premium.steps.forEach((s) => addLog(s.message, s.status, { source: s.source, details: s.details }));
-          } else {
-            addLog('MCP agent purchased premium data — dashboard updated', 'success', { source: 'agent', details: premium.data });
+        if (!premium.data && !(premium.steps?.length)) {
+          if (lastPremiumTs !== 0) { lastPremiumTs = 0; lastPremiumStepCount = 0; setPremiumData(null); }
+        } else {
+          const steps = premium.steps ?? [];
+          // Detect new payment (step count reset means a new run started)
+          if (steps.length < lastPremiumStepCount) lastPremiumStepCount = 0;
+          if (steps.length > lastPremiumStepCount) {
+            steps.slice(lastPremiumStepCount).forEach((s) => addLog(s.message, s.status, { source: s.source, details: s.details }));
+            lastPremiumStepCount = steps.length;
           }
-          if (premium.payer) {
-            const bal = await getUsdcBalance(premium.payer, USDC_ADDRESS, BASE_SEPOLIA_RPC).catch(() => null);
-            void pollUntilSettled(bal, () => {}, premium.payer, premium.ts);
+          if (premium.data && premium.ts && premium.ts !== lastPremiumTs) {
+            lastPremiumTs = premium.ts;
+            setPremiumData(premium.data as PremiumData);
+            if (premium.payer) {
+              const bal = await getUsdcBalance(premium.payer, USDC_ADDRESS, BASE_SEPOLIA_RPC).catch(() => null);
+              void pollUntilSettled(bal, () => {}, premium.payer, premium.ts);
+            }
           }
         }
         const spcx = await spcxRes.json() as AgentEntry;
-        if (!spcx.data) {
-          if (lastSpcxTs !== 0) { lastSpcxTs = 0; setSpcxData(null); }
-        } else if (spcx.ts && spcx.ts > lastSpcxTs) {
-          lastSpcxTs = spcx.ts;
-          setSpcxData(spcx.data as SpcxData);
-          if (spcx.steps?.length) {
-            spcx.steps.forEach((s) => addLog(s.message, s.status, { source: s.source, details: s.details }));
-          } else {
-            addLog('MCP agent purchased SPCX data — dashboard updated', 'success', { source: 'agent', details: spcx.data });
+        if (!spcx.data && !(spcx.steps?.length)) {
+          if (lastSpcxTs !== 0) { lastSpcxTs = 0; lastSpcxStepCount = 0; setSpcxData(null); }
+        } else {
+          const steps = spcx.steps ?? [];
+          if (steps.length < lastSpcxStepCount) lastSpcxStepCount = 0;
+          if (steps.length > lastSpcxStepCount) {
+            steps.slice(lastSpcxStepCount).forEach((s) => addLog(s.message, s.status, { source: s.source, details: s.details }));
+            lastSpcxStepCount = steps.length;
           }
-          if (spcx.payer) {
-            const bal = await getUsdcBalance(spcx.payer, USDC_ADDRESS, BASE_SEPOLIA_RPC).catch(() => null);
-            void pollUntilSettled(bal, () => {}, spcx.payer, spcx.ts);
+          if (spcx.data && spcx.ts && spcx.ts !== lastSpcxTs) {
+            lastSpcxTs = spcx.ts;
+            setSpcxData(spcx.data as SpcxData);
+            if (spcx.payer) {
+              const bal = await getUsdcBalance(spcx.payer, USDC_ADDRESS, BASE_SEPOLIA_RPC).catch(() => null);
+              void pollUntilSettled(bal, () => {}, spcx.payer, spcx.ts);
+            }
           }
         }
       } catch { /* merchant may not be running */ }
-    }, 3000);
+    }, 500);
     return () => clearInterval(id);
   }, [addLog]);
 
@@ -343,14 +352,14 @@ export default function App() {
           });
           onSettled(bal);
           finish();
-        } else if (attempts < 40) {
+        } else if (attempts < 600) {
           attempts++;
-          setTimeout(() => { void poll(); }, 3000);
+          setTimeout(() => { void poll(); }, 500);
         } else {
           addLog('Settlement timed out — check Fireblocks for approval status', 'error', {
             source: 'facilitator',
             details: {
-              http: `[Fireblocks] CONTRACT_CALL timed out\n\nNo confirmation received after ${attempts * 3}s\npayer:   ${payerAddress}\nAction:  Open Fireblocks console and approve the pending CONTRACT_CALL`,
+              http: `[Fireblocks] CONTRACT_CALL timed out\n\nNo confirmation received after ${Math.round(attempts * 0.5)}s\npayer:   ${payerAddress}\nAction:  Open Fireblocks console and approve the pending CONTRACT_CALL`,
             },
           });
           finish();

@@ -267,8 +267,21 @@ app.get('/settlement-status', (req, res) => {
 
 // MCP agent posts purchased data here; dashboard polls to display it
 app.post('/agent-data', (req, res) => {
-  const { endpoint, data, steps, payer } = req.body as { endpoint: string; data: unknown; steps?: AgentStep[]; payer?: string };
-  if (!endpoint || !data) { res.status(400).json({ error: 'missing endpoint or data' }); return; }
+  const { endpoint, data, steps, payer, partial } = req.body as { endpoint: string; data: unknown; steps?: AgentStep[]; payer?: string; partial?: boolean };
+  if (!endpoint) { res.status(400).json({ error: 'missing endpoint' }); return; }
+  if (partial) {
+    // Incremental step stream — preserve existing data and ts, only update steps
+    const existing = agentDataStore.get(endpoint);
+    agentDataStore.set(endpoint, {
+      data: existing?.data ?? null,
+      ts: existing?.ts ?? Date.now(),
+      steps,
+      payer: payer ?? existing?.payer,
+    });
+    res.json({ ok: true });
+    return;
+  }
+  if (!data) { res.status(400).json({ error: 'missing data' }); return; }
   log(`\n[agent → merchant] POST /agent-data — storing result for ${endpoint}`);
   if (payer) log(`  payer: ${payer}`);
   if (steps?.length) log(`  steps: ${steps.length} activity entries`);

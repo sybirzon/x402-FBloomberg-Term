@@ -22,10 +22,17 @@ function toIcon(s: InlineStatus): string {
 export class ActivityLog {
   private readonly _steps: ActivityStep[] = [];
   private readonly _lines: string[] = [];
+  private _streamFn?: (steps: ActivityStep[]) => void;
+
+  streamTo(fn: (steps: ActivityStep[]) => void): this {
+    this._streamFn = fn;
+    return this;
+  }
 
   push(source: ActivitySource, status: InlineStatus, message: string, details?: unknown): void {
     this._lines.push(`[${source}] ${toIcon(status)} ${message}`);
     this._steps.push({ message, status: toStatus(status), source, details });
+    this._streamFn?.(this._steps);
   }
 
   steps(): ActivityStep[] { return [...this._steps]; }
