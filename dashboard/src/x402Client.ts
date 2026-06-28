@@ -4,7 +4,7 @@ import type { ActivityStep, PremiumData, SpcxData, PaymentDetails } from './type
 const MERCHANT_URL = 'http://localhost:3010';
 
 export type StepStatus = ActivityStep['status'];
-export type StepMeta = { source?: ActivityStep['source']; details?: unknown };
+export type StepMeta = { source?: ActivityStep['source']; dest?: ActivityStep['dest']; details?: unknown };
 export type StepCallback = (step: string, status: StepStatus, meta?: StepMeta) => void;
 export type ConfirmCallback = (details: PaymentDetails) => Promise<boolean>;
 
@@ -17,7 +17,7 @@ async function purchaseEndpoint<T>(
   onConfirm: ConfirmCallback,
 ): Promise<T> {
   onStep(`GET ${endpoint}`, 'info', {
-    source: 'agent',
+    source: 'agent', dest: 'merchant',
     details: { http: `GET ${endpoint} HTTP/1.1\nHost: localhost:3010\nAccept: application/json` },
   });
 
@@ -27,7 +27,7 @@ async function purchaseEndpoint<T>(
     if (firstRes.ok) {
       const data = await firstRes.json() as T;
       onStep('200 OK — access granted (no payment needed)', 'success', {
-        source: 'merchant',
+        source: 'merchant', dest: 'agent',
         details: { http: `HTTP/1.1 200 OK\nContent-Type: application/json\n\n${JSON.stringify(data, null, 2)}` },
       });
       return data;
@@ -50,14 +50,14 @@ async function purchaseEndpoint<T>(
   const amountHuman = (Number(amountRaw) / 1_000_000).toFixed(2);
   const network: string = accepted.network ?? '?';
   onStep('POST /api/payments/create — quote issued', 'success', {
-    source: 'facilitator',
+    source: 'merchant', dest: 'facilitator',
     details: {
       http: `[Facilitator] POST /api/payments/create\nAuthorization: Bearer ***\nContent-Type: application/json\n\nHTTP/1.1 201 Created\n\n  amount:  ${amountRaw} (${amountHuman} USDC)\n  asset:   ${accepted.asset ?? '?'}\n  payTo:   ${accepted.payTo ?? '?'}\n  network: ${network}\n  method:  ${accepted.extra?.assetTransferMethod ?? 'eip3009'}`,
     },
   });
 
   onStep(`402 Payment Required — ${amountHuman} USDC`, 'info', {
-    source: 'merchant',
+    source: 'merchant', dest: 'agent',
     details: {
       http: `HTTP/1.1 402 Payment Required\nContent-Type: application/json\nPAYMENT-REQUIRED: scheme="exact", price="${amountHuman}", currency="USDC", network="${network}", payTo="${accepted.payTo ?? '?'}"\n\n${JSON.stringify(body402, null, 2)}`,
       accepts: body402.accepts,
@@ -81,7 +81,7 @@ async function purchaseEndpoint<T>(
   }
 
   onStep('Signing EIP-3009 typed data...', 'info', {
-    source: 'agent',
+    source: 'agent', // local — no dest
     details: {
       http: `[Local] EIP-712 signTypedData — no HTTP, no gas\n\nto:          ${accepted.payTo ?? '?'}\nvalue:       ${accepted.amount} (${amountHuman} USDC)\nnetwork:     ${network}\ncontract:    ${accepted.asset ?? '?'}\nprimaryType: TransferWithAuthorization`,
       eip712: {
@@ -107,7 +107,7 @@ async function purchaseEndpoint<T>(
   }
 
   onStep('EIP-3009 typed data signed', 'success', {
-    source: 'agent',
+    source: 'agent', // local — no dest
     details: {
       http: `[Signed] TransferWithAuthorization\n\nto:          ${authorization.to}\nvalue:       ${authorization.value} (${amountHuman} USDC)\nsignature:   ${signature}`,
       domain,
@@ -117,7 +117,7 @@ async function purchaseEndpoint<T>(
   });
 
   onStep('Sending signed payment...', 'info', {
-    source: 'agent',
+    source: 'agent', dest: 'merchant',
     details: {
       http: `GET ${endpoint} HTTP/1.1\nHost: localhost:3010\nAccept: application/json\npayment-signature: <base64(x402 payload)>\n\n  x402Version: 2\n  resource:    ${MERCHANT_URL}${endpoint}\n  value:       ${accepted.amount} (${amountHuman} USDC)`,
       authorization,
@@ -145,29 +145,29 @@ async function purchaseEndpoint<T>(
       reason = errBody?.error ?? errBody?.message ?? reason;
     } catch { /* ignore */ }
     onStep('POST /api/payments/verify — signature rejected', 'error', {
-      source: 'facilitator',
+      source: 'merchant', dest: 'facilitator',
       details: { http: `[Facilitator] POST /api/payments/verify\n\nHTTP/1.1 200 OK\n\n{ "isValid": false, "invalidReason": "${reason}" }` },
     });
-    onStep(`Payment rejected — ${reason}`, 'error', { source: 'merchant' });
+    onStep(`Payment rejected — ${reason}`, 'error', { source: 'merchant', dest: 'agent' });
     throw new Error(`Payment failed: ${reason}`);
   }
 
   const data = await secondRes.json() as T;
   const paymentResponse = secondRes.headers.get('payment-response');
   onStep('POST /api/payments/verify — signature valid', 'success', {
-    source: 'facilitator',
+    source: 'merchant', dest: 'facilitator',
     details: {
       http: `[Facilitator] POST /api/payments/verify\nAuthorization: Bearer ***\nContent-Type: application/json\n\n  to:      ${accepted.payTo ?? '?'}\n  value:   ${amountRaw} (${amountHuman} USDC)\n  network: ${network}\n\nHTTP/1.1 200 OK\n\n{ "isValid": true }`,
     },
   });
   onStep('200 OK — payment accepted', 'success', {
-    source: 'merchant',
+    source: 'merchant', dest: 'agent',
     details: {
       http: `HTTP/1.1 200 OK\nContent-Type: application/json${paymentResponse ? `\npayment-response: ${paymentResponse}` : ''}\n\n${JSON.stringify(data, null, 2)}`,
     },
   });
   onStep('POST /api/payments/settle — Fireblocks CONTRACT_CALL submitted', 'info', {
-    source: 'facilitator',
+    source: 'merchant', dest: 'facilitator',
     details: {
       http: `[Facilitator] POST /api/payments/settle (optimistic — background)\nAuthorization: Bearer ***\nContent-Type: application/json\n\n  value:   ${amountRaw} (${amountHuman} USDC)\n  network: ${network}\n  method:  ${accepted.extra?.assetTransferMethod ?? 'eip3009'}\n\n→ Fireblocks CONTRACT_CALL submitted\n  Awaiting signing request approval in Fireblocks console/app...`,
     },

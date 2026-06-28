@@ -28,7 +28,8 @@ export interface PremiumData {
 export interface ActivityStep {
   message: string;
   status: 'info' | 'success' | 'error';
-  source?: 'agent' | 'merchant' | 'facilitator';
+  source?: 'agent' | 'merchant' | 'facilitator' | 'fireblocks';
+  dest?: 'agent' | 'merchant' | 'facilitator' | 'fireblocks';
   details?: unknown;
 }
 

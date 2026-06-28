@@ -1,10 +1,11 @@
-export type ActivitySource = 'agent' | 'merchant' | 'facilitator';
+export type ActivitySource = 'agent' | 'merchant' | 'facilitator' | 'fireblocks';
 export type ActivityStatus = 'info' | 'success' | 'error';
 
 export interface ActivityStep {
   message: string;
   status: ActivityStatus;
   source: ActivitySource;
+  dest?: ActivitySource;
   details?: unknown;
 }
 
@@ -29,9 +30,10 @@ export class ActivityLog {
     return this;
   }
 
-  push(source: ActivitySource, status: InlineStatus, message: string, details?: unknown): void {
-    this._lines.push(`[${source}] ${toIcon(status)} ${message}`);
-    this._steps.push({ message, status: toStatus(status), source, details });
+  push(source: ActivitySource, status: InlineStatus, message: string, details?: unknown, dest?: ActivitySource): void {
+    const label = dest ? `[${source} → ${dest}]` : `[${source}]`;
+    this._lines.push(`${label} ${toIcon(status)} ${message}`);
+    this._steps.push({ message, status: toStatus(status), source, dest, details });
     this._streamFn?.(this._steps);
   }
 

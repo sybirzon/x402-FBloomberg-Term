@@ -763,7 +763,7 @@ async function main() {
   // 1. Hit the merchant without a signature — expect 402.
   log.push('agent', '→', `GET ${merchantUrl.pathname}`, {
     http: `GET ${merchantUrl.pathname} HTTP/1.1\nHost: ${merchantUrl.host}\nAccept: application/json`,
-  });
+  }, 'merchant');
   const first = await fetch(MERCHANT_URL);
   if (first.status === 200) {
     console.log('Resource already free (no 402). Body:', await first.text());
@@ -781,13 +781,13 @@ async function main() {
   }
 
   const amountHuman = (Number(quote.accepts[0].amount) / 1_000_000).toFixed(2);
-  log.push('facilitator', '✓', 'POST /api/payments/create — quote issued', {
+  log.push('merchant', '✓', 'POST /api/payments/create — quote issued', {
     http: `[Facilitator] POST /api/payments/create\nAuthorization: Bearer ***\nContent-Type: application/json\n\nHTTP/1.1 201 Created\n\n  amount:  ${quote.accepts[0].amount} (${amountHuman} USDC)\n  asset:   ${quote.accepts[0].asset}\n  payTo:   ${quote.accepts[0].payTo}\n  network: ${quote.accepts[0].network}\n  method:  ${quote.accepts[0].extra?.assetTransferMethod ?? 'eip3009'}`,
-  });
+  }, 'facilitator');
   log.push('merchant', '→', `402 Payment Required — ${amountHuman} USDC`, {
     http: `HTTP/1.1 402 Payment Required\nContent-Type: application/json\n\n${JSON.stringify(quote, null, 2)}`,
     accepts: quote.accepts,
-  });
+  }, 'agent');
 
   console.log(`\n402 quote — ${quote.accepts.length} payment option(s):`);
   for (const a of quote.accepts) {
@@ -855,7 +855,7 @@ async function main() {
       http: `[Signed] TransferWithAuthorization\n\nfrom:        ${wallet.address}\nto:          ${accepted.payTo}\nvalue:       ${accepted.amount} (${selectedAmount} USDC)\nsignature:   ${signed.signature}`,
       signature: signed.signature,
       body: signed.body,
-    });
+    }); // local signing — no dest
   } else if (mechanism === 'permit2') {
     // Permit2: EOA needs USDC for the transfer, and (if allowance isn't
     // set yet) a tiny amount of gas ETH for the one-time approve tx.
@@ -954,7 +954,7 @@ async function main() {
   log.push('agent', '→', 'Sending signed payment...', {
     http: `GET ${merchantUrl.pathname} HTTP/1.1\nHost: ${merchantUrl.host}\nAccept: application/json\npayment-signature: <base64(x402 payload)>\n\n  x402Version: 2\n  resource:    ${MERCHANT_URL}\n  from:        ${wallet.address}`,
     payload,
-  });
+  }, 'merchant');
   console.log(`\nRetrying with payment-signature header…`);
   const second = await fetch(MERCHANT_URL, { headers: { 'payment-signature': header } });
   console.log(`\nMerchant response: ${second.status}`);
@@ -969,22 +969,22 @@ async function main() {
 
   const settlementHeader = second.headers.get('payment-response');
   if (second.ok) {
-    log.push('facilitator', '✓', 'POST /api/payments/verify — signature valid', {
+    log.push('merchant', '✓', 'POST /api/payments/verify — signature valid', {
       http: `[Facilitator] POST /api/payments/verify\nAuthorization: Bearer ***\nContent-Type: application/json\n\n  from:    ${wallet.address}\n  value:   ${accepted.amount} (${amountHuman} USDC)\n  network: ${accepted.network}\n\nHTTP/1.1 200 OK\n\n{ "isValid": true }`,
-    });
+    }, 'facilitator');
     log.push('merchant', '✓', '200 OK — payment accepted', {
       http: `HTTP/1.1 200 OK\nContent-Type: application/json${settlementHeader ? `\npayment-response: ${settlementHeader}` : ''}\n\n${JSON.stringify(parsedBody, null, 2)}`,
-    });
-    log.push('facilitator', '→', 'POST /api/payments/settle — Fireblocks CONTRACT_CALL submitted', {
+    }, 'agent');
+    log.push('merchant', '→', 'POST /api/payments/settle — Fireblocks CONTRACT_CALL submitted', {
       http: `[Facilitator] POST /api/payments/settle (optimistic — background)\nAuthorization: Bearer ***\nContent-Type: application/json\n\n  payer:   ${wallet.address}\n  value:   ${accepted.amount} (${amountHuman} USDC)\n  network: ${accepted.network}\n  method:  ${accepted.extra?.assetTransferMethod ?? 'eip3009'}\n\n→ Fireblocks CONTRACT_CALL submitted\n  Awaiting signing request approval in Fireblocks console/app...`,
-    });
+    }, 'facilitator');
   } else {
-    log.push('facilitator', '✗', 'POST /api/payments/verify — signature rejected', {
+    log.push('merchant', '✗', 'POST /api/payments/verify — signature rejected', {
       http: `[Facilitator] POST /api/payments/verify\n\nHTTP/1.1 200 OK\n\n{ "isValid": false, "invalidReason": "HTTP ${second.status}" }`,
-    });
+    }, 'facilitator');
     log.push('merchant', '✗', `Payment rejected — HTTP ${second.status}`, {
       http: `HTTP/1.1 ${second.status}\nContent-Type: application/json\n\n${JSON.stringify(parsedBody, null, 2)}`,
-    });
+    }, 'agent');
   }
 
   if (settlementHeader) {

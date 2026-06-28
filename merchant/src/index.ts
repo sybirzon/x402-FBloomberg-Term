@@ -57,7 +57,7 @@ if (!SPCX_PRODUCT_ID) {
 
 const GATED_PATHS = new Set(['/premium', '/spcx']);
 
-type AgentStep = { message: string; status: 'info' | 'success' | 'error'; source: 'agent' | 'merchant' | 'facilitator' };
+type AgentStep = { message: string; status: 'info' | 'success' | 'error'; source: 'agent' | 'merchant' | 'facilitator' | 'fireblocks'; dest?: 'agent' | 'merchant' | 'facilitator' | 'fireblocks'; details?: unknown };
 // Last data purchased by the MCP agent, keyed by endpoint
 const agentDataStore = new Map<string, { data: unknown; ts: number; steps?: AgentStep[]; payer?: string }>();
 

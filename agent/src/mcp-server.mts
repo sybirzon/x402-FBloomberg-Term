@@ -161,19 +161,20 @@ async function purchaseEndpoint(endpoint: 'premium' | 'spcx'): Promise<string> {
     status: Parameters<ActivityLog['push']>[1],
     label: string,
     details?: unknown,
-  ) => log.push(source, status, label, details);
+    dest?: Parameters<ActivityLog['push']>[4],
+  ) => log.push(source, status, label, details, dest);
 
   push('agent', '→', `GET /${endpoint}`, {
     http: `GET /${endpoint} HTTP/1.1\nHost: ${new URL(url).host}\nAccept: application/json`,
-  });
+  }, 'merchant');
 
   const first = await fetch(url);
   if (first.status === 200) {
-    push('merchant', '✓', '200 OK — access granted (no payment needed)');
+    push('merchant', '✓', '200 OK — access granted (no payment needed)', undefined, 'agent');
     return log.text() + '\n' + (await first.text()).slice(0, 500);
   }
   if (first.status !== 402) {
-    push('merchant', '✗', `Unexpected status ${first.status}`);
+    push('merchant', '✗', `Unexpected status ${first.status}`, undefined, 'agent');
     throw new Error(`Unexpected status ${first.status} from merchant`);
   }
 
@@ -183,14 +184,14 @@ async function purchaseEndpoint(endpoint: 'premium' | 'spcx'): Promise<string> {
     quote.accepts[0];
   const amountHuman = formatUnits(BigInt(accepted.amount), 6);
 
-  push('facilitator', '✓', 'POST /api/payments/create — quote issued', {
+  push('merchant', '✓', 'POST /api/payments/create — quote issued', {
     http: `[Facilitator] POST /api/payments/create\nAuthorization: Bearer ***\nContent-Type: application/json\n\nHTTP/1.1 201 Created\n\n  amount:  ${accepted.amount} (${amountHuman} USDC)\n  asset:   ${accepted.asset}\n  payTo:   ${accepted.payTo}\n  network: ${accepted.network}\n  method:  ${accepted.extra?.assetTransferMethod ?? 'eip3009'}`,
-  });
+  }, 'facilitator');
 
   push('merchant', '→', `402 Payment Required — ${amountHuman} USDC`, {
     http: `HTTP/1.1 402 Payment Required\nContent-Type: application/json\nPAYMENT-REQUIRED: scheme="exact", price="${amountHuman}", currency="USDC", network="${accepted.network}", payTo="${accepted.payTo}"\n\n{\n  "error": "Payment required to access ${endpoint} market data.",\n  "amount": "${amountHuman} USDC",\n  "network": "${accepted.network}"\n}`,
     accepts: quote.accepts,
-  });
+  }, 'agent');
 
   push('agent', '→', 'Signing EIP-3009 typed data...', {
     http: `[Local] EIP-712 signTypedData — no HTTP, no gas\n\nfrom:        ${wallet.address}\nto:          ${accepted.payTo}\nvalue:       ${accepted.amount} (${amountHuman} USDC)\nnetwork:     ${accepted.network}\ncontract:    ${accepted.asset}\nprimaryType: TransferWithAuthorization`,
@@ -212,34 +213,34 @@ async function purchaseEndpoint(endpoint: 'premium' | 'spcx'): Promise<string> {
   push('agent', '→', 'Sending signed payment...', {
     http: `GET /${endpoint} HTTP/1.1\nHost: ${new URL(url).host}\nAccept: application/json\npayment-signature: <base64(x402 payload)>\n\n  x402Version: 2\n  resource:    ${url}\n  from:        ${wallet.address}\n  value:       ${accepted.amount} (${amountHuman} USDC)`,
     payload: signed.payload,
-  });
+  }, 'merchant');
 
   const second = await fetch(url, { headers: { 'payment-signature': signed.header } });
 
   const text = await second.text();
   if (second.status !== 200) {
-    push('facilitator', '✗', 'POST /api/payments/verify — signature rejected', {
+    push('merchant', '✗', 'POST /api/payments/verify — signature rejected', {
       http: `[Facilitator] POST /api/payments/verify\n\nHTTP/1.1 200 OK\n\n{ "isValid": false, "invalidReason": "HTTP ${second.status}" }`,
-    });
-    push('merchant', '✗', `Payment rejected — HTTP ${second.status}: ${text.slice(0, 200)}`);
+    }, 'facilitator');
+    push('merchant', '✗', `Payment rejected — HTTP ${second.status}: ${text.slice(0, 200)}`, undefined, 'agent');
     return log.text();
   }
 
   let data: Record<string, unknown> | null = null;
   try { data = JSON.parse(text); } catch { /* ignore */ }
 
-  push('facilitator', '✓', 'POST /api/payments/verify — signature valid', {
+  push('merchant', '✓', 'POST /api/payments/verify — signature valid', {
     http: `[Facilitator] POST /api/payments/verify\nAuthorization: Bearer ***\nContent-Type: application/json\n\n  from:        ${signed.authorization.from}\n  to:          ${signed.authorization.to}\n  value:       ${signed.authorization.value} (${amountHuman} USDC)\n  nonce:       ${signed.authorization.nonce}\n  validBefore: ${signed.authorization.validBefore}\n\nHTTP/1.1 200 OK\n\n{ "isValid": true }`,
-  });
+  }, 'facilitator');
 
   const paymentResponse = second.headers.get('payment-response');
   push('merchant', '✓', '200 OK — payment accepted', {
     http: `HTTP/1.1 200 OK\nContent-Type: application/json${paymentResponse ? `\npayment-response: ${paymentResponse}` : ''}\n\n${JSON.stringify(data, null, 2)}`,
-  });
+  }, 'agent');
 
-  push('facilitator', '→', 'POST /api/payments/settle — Fireblocks CONTRACT_CALL submitted', {
+  push('merchant', '→', 'POST /api/payments/settle — Fireblocks CONTRACT_CALL submitted', {
     http: `[Facilitator] POST /api/payments/settle (optimistic — background)\nAuthorization: Bearer ***\nContent-Type: application/json\n\n  payer:   ${wallet.address}\n  value:   ${accepted.amount} (${amountHuman} USDC)\n  network: ${accepted.network}\n  method:  ${accepted.extra?.assetTransferMethod ?? 'eip3009'}\n\n→ Fireblocks CONTRACT_CALL submitted\n  Awaiting signing request approval in Fireblocks console/app...`,
-  });
+  }, 'facilitator');
 
   // ── Formatted table output ─────────────────────────────────────────
   const tableLines: string[] = [];

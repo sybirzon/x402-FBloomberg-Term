@@ -103,11 +103,12 @@ export default function App() {
   const addLog = useCallback((
     message: string,
     status: LogEntry['status'],
-    meta?: { source?: LogEntry['source']; details?: unknown },
+    meta?: { source?: LogEntry['source']; dest?: LogEntry['dest']; details?: unknown },
   ) => {
     setLog((prev) => [...prev, {
       time: formatTime(), message, status,
       source: meta?.source,
+      dest: meta?.dest,
       details: meta?.details,
     }]);
   }, []);
@@ -176,7 +177,7 @@ export default function App() {
           fetch(`${MERCHANT_URL}/agent-data?endpoint=/premium`),
           fetch(`${MERCHANT_URL}/agent-data?endpoint=/spcx`),
         ]);
-        type AgentStep = { message: string; status: 'info' | 'success' | 'error'; source: 'agent' | 'merchant' | 'facilitator'; details?: unknown };
+        type AgentStep = { message: string; status: 'info' | 'success' | 'error'; source: 'agent' | 'merchant' | 'facilitator' | 'fireblocks'; dest?: 'agent' | 'merchant' | 'facilitator' | 'fireblocks'; details?: unknown };
         type AgentEntry = { data: unknown; ts?: number; steps?: AgentStep[]; payer?: string };
         const premium = await premiumRes.json() as AgentEntry;
         if (!premium.data && !(premium.steps?.length)) {
@@ -186,7 +187,7 @@ export default function App() {
           // Detect new payment (step count reset means a new run started)
           if (steps.length < lastPremiumStepCount) lastPremiumStepCount = 0;
           if (steps.length > lastPremiumStepCount) {
-            steps.slice(lastPremiumStepCount).forEach((s) => addLog(s.message, s.status, { source: s.source, details: s.details }));
+            steps.slice(lastPremiumStepCount).forEach((s) => addLog(s.message, s.status, { source: s.source, dest: s.dest, details: s.details }));
             lastPremiumStepCount = steps.length;
           }
           if (premium.data && premium.ts && premium.ts !== lastPremiumTs) {
@@ -205,7 +206,7 @@ export default function App() {
           const steps = spcx.steps ?? [];
           if (steps.length < lastSpcxStepCount) lastSpcxStepCount = 0;
           if (steps.length > lastSpcxStepCount) {
-            steps.slice(lastSpcxStepCount).forEach((s) => addLog(s.message, s.status, { source: s.source, details: s.details }));
+            steps.slice(lastSpcxStepCount).forEach((s) => addLog(s.message, s.status, { source: s.source, dest: s.dest, details: s.details }));
             lastSpcxStepCount = steps.length;
           }
           if (spcx.data && spcx.ts && spcx.ts !== lastSpcxTs) {
@@ -299,7 +300,7 @@ export default function App() {
           if (status.status === 'submitted' && !seenSubmitted) {
             seenSubmitted = true;
             addLog('Settlement pending — Fireblocks signing request sent', 'info', {
-              source: 'facilitator',
+              source: 'facilitator', dest: 'fireblocks',
               details: {
                 http: `[Fireblocks] CONTRACT_CALL submitted → PENDING_SIGNATURE\n\nstatus:   awaiting_signature\npayer:    ${payerAddress}\nendpoint: ${status.endpoint ?? '?'}\nAction:   Approve the signing request in your Fireblocks mobile app or console`,
               },
@@ -307,21 +308,27 @@ export default function App() {
           }
 
           if (status.status === 'failed' && (status.ts == null || status.ts >= startedAt - 2000)) {
-            addLog(`Settlement failed — ${status.error ?? 'rejected'}`, 'error', {
-              source: 'facilitator',
-              details: {
-                http: `[Fireblocks] CONTRACT_CALL rejected\n\nstatus:   failed\nreason:   ${status.error ?? 'rejected'}${status.txHash ? `\ntxHash:   ${status.txHash}` : ''}${status.endpoint ? `\nendpoint: ${status.endpoint}` : ''}\npayer:    ${payerAddress}`,
-                ...status,
-              },
-            });
-            finish();
-            return;
+            const isAborted = status.error?.toLowerCase().includes('aborted');
+            if (isAborted) {
+              // Transient HTTP abort from the facilitator's Fireblocks API call —
+              // the signing request may still exist in Fireblocks. Keep polling.
+            } else {
+              addLog(`Settlement failed — ${status.error ?? 'rejected'}`, 'error', {
+                source: 'fireblocks', dest: 'merchant',
+                details: {
+                  http: `[Fireblocks] CONTRACT_CALL rejected\n\nstatus:   failed\nreason:   ${status.error ?? 'rejected'}${status.txHash ? `\ntxHash:   ${status.txHash}` : ''}${status.endpoint ? `\nendpoint: ${status.endpoint}` : ''}\npayer:    ${payerAddress}`,
+                  ...status,
+                },
+              });
+              finish();
+              return;
+            }
           }
           if (status.status === 'confirmed' && (status.ts == null || status.ts >= startedAt - 2000)) {
             const bal = await getUsdcBalance(payerAddress, USDC_ADDRESS, BASE_SEPOLIA_RPC);
             if (payerOverride === undefined) setUsdcBalance(bal);
             addLog(`Settlement confirmed — balance: ${Number(bal).toFixed(4)} USDC`, 'success', {
-              source: 'facilitator',
+              source: 'fireblocks', dest: 'merchant',
               details: {
                 http: `[Fireblocks] CONTRACT_CALL confirmed ✓\n\nstatus:      confirmed${status.txHash ? `\ntxHash:      ${status.txHash}` : ''}${status.endpoint ? `\nendpoint:    ${status.endpoint}` : ''}\npayer:       ${payerAddress}\nbalanceBefore: ${balanceBefore}\nbalanceAfter:  ${bal}`,
                 ...status,
@@ -343,7 +350,7 @@ export default function App() {
 
         if (bal !== null && bal !== balanceBefore) {
           addLog(`Settlement confirmed — balance: ${Number(bal).toFixed(4)} USDC`, 'success', {
-            source: 'facilitator',
+            source: 'fireblocks', dest: 'merchant',
             details: {
               http: `[On-chain] Balance change detected on Base Sepolia\n\nUSDC.balanceOf(${payerAddress})\n\nbalanceBefore: ${balanceBefore}\nbalanceAfter:  ${bal}\nnetwork:       eip155:84532`,
               balanceBefore,
@@ -357,7 +364,7 @@ export default function App() {
           setTimeout(() => { void poll(); }, 500);
         } else {
           addLog('Settlement timed out — check Fireblocks for approval status', 'error', {
-            source: 'facilitator',
+            source: 'facilitator', dest: 'fireblocks',
             details: {
               http: `[Fireblocks] CONTRACT_CALL timed out\n\nNo confirmation received after ${Math.round(attempts * 0.5)}s\npayer:   ${payerAddress}\nAction:  Open Fireblocks console and approve the pending CONTRACT_CALL`,
             },
@@ -864,7 +871,9 @@ export default function App() {
                 >
                   <span className="log-time">{entry.time}</span>
                   {entry.source && (
-                    <span className={`log-source log-source-${entry.source}`}>{entry.source}</span>
+                    <span className={`log-source log-source-${entry.source}`}>
+                      {entry.dest ? `${entry.source} → ${entry.dest}` : entry.source}
+                    </span>
                   )}
                   <LogIcon status={entry.status} />
                   <span className="log-message">{entry.message}</span>
