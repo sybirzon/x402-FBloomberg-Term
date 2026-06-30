@@ -888,13 +888,13 @@ async function main() {
     console.log('\nSigning Permit2 PermitWitnessTransferFrom…');
     log.push('agent', '→', 'Signing Permit2 PermitWitnessTransferFrom...', {
       http: `[Local] EIP-712 signTypedData — no HTTP, no gas\n\nfrom:        ${wallet.address}\nto:          ${accepted.payTo}\nvalue:       ${accepted.amount}\nnetwork:     ${accepted.network}\ncontract:    ${accepted.asset}\nprimaryType: PermitWitnessTransferFrom`,
-    });
+    }); // local signing — no dest
     signed = await signPermit2(wallet, accepted, chainId);
     log.push('agent', '✓', 'Permit2 typed data signed', {
       http: `[Signed] PermitWitnessTransferFrom\n\nfrom:        ${wallet.address}\nto:          ${accepted.payTo}\nvalue:       ${accepted.amount}\nsignature:   ${signed.signature}`,
       signature: signed.signature,
       body: signed.body,
-    });
+    }); // local signing — no dest
   } else if (mechanism === 'erc7710') {
     // ERC-7710 via EIP-7702: EOA needs USDC (for the eventual transfer)
     // and gas ETH (for the one-time self-upgrade tx).
@@ -923,13 +923,13 @@ async function main() {
     console.log('\nSigning MDF Delegation (EIP-712 against DelegationManager)…');
     log.push('agent', '→', 'Signing ERC-7710 delegation (EIP-712)...', {
       http: `[Local] EIP-712 signTypedData — no HTTP, no gas\n\nfrom:        ${wallet.address}\nnetwork:     ${accepted.network}\ncontract:    ${accepted.asset}\nprimaryType: Delegation`,
-    });
+    }); // local signing — no dest
     signed = await signDelegation(wallet, accepted, chainId);
     log.push('agent', '✓', 'Delegation signed', {
       http: `[Signed] Delegation\n\nfrom:        ${wallet.address}\nsignature:   ${signed.signature}`,
       signature: signed.signature,
       body: signed.body,
-    });
+    }); // local signing — no dest
     includeEcdsaSignature = false; // server expects payload.delegation, no top-level sig
   } else {
     throw new Error(
