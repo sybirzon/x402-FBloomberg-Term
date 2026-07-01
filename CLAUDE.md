@@ -1,4 +1,4 @@
-# Bloomberg Terminal — x402 Micropayments Demo
+# FBloomberg Terminal — x402 Micropayments Demo
 
 An end-to-end demo of AI-native payments using the x402 protocol. An AI agent (Claude via MCP) pays $0.01–$0.02 USDC per request to unlock gated Bloomberg-style market data, settled on-chain via Fireblocks on Base Sepolia.
 
@@ -214,6 +214,31 @@ The dashboard polls `/settlement-status?payer=<agent-wallet>` after each MCP pur
 
 **"Settlement confirmed" fires before the Fireblocks contract call is signed**
 This was a known bug caused by the `settlementStore` returning a stale record from a previous payment. It is fixed: the dashboard captures a `startedAt` timestamp before each purchase and only accepts `/settlement-status` responses whose `ts ≥ startedAt - 2s`.
+
+## Observing Agent Output by Flow
+
+Where you can see step-by-step output depends on which flow triggered the purchase:
+
+| Flow | Signing steps visible? | Where to look |
+|------|----------------------|---------------|
+| `npm run dev` (CLI agent) | Yes — full output | Terminal running the agent |
+| MCP (Claude Code tool call) | No | Dashboard activity log; merchant terminal |
+| Web UI (dashboard button) | No | Dashboard activity log; merchant terminal |
+
+**CLI agent** prints everything: balance probes, EIP-712 typed data, signature, raw HTTP response.
+
+**MCP server** runs as a stdio subprocess under Claude Code. Its stdout is the JSON-RPC wire protocol, so it cannot log there. Stderr is captured internally by Claude Code and is not written to a file. What you see in the Claude Code conversation is the tool return value — not a live stream. The dashboard activity log is the closest equivalent.
+
+**Web UI** signs entirely in the browser. No server-side process produces CLI output for the signing steps.
+
+**Following server-side traffic for any flow:**
+
+```bash
+tail -f /tmp/bloomberg-merchant.log      # HTTP requests, 402/200, facilitator calls
+tail -f /tmp/bloomberg-facilitator.log   # Fireblocks CONTRACT_CALL submission and settlement
+```
+
+These show the merchant and facilitator sides of every purchase regardless of which client triggered it, but they do not include the client-side signing steps.
 
 ## Activity Log
 
