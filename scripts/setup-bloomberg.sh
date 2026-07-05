@@ -112,7 +112,7 @@ read -rp "  Fireblocks API key: " FB_API_KEY
 
 # ── 3b2. Fireblocks vault ID (numeric, immutable) ─────────────────────────────
 echo ""
-read -rp "  Fireblocks vault ID (numeric, e.g. 0 or 2): " FB_VAULT_ID
+read -rp "  Fireblocks vault ID (any non-negative integer, e.g. 0, 1, 2, 10 ...): " FB_VAULT_ID
 [[ -z "$FB_VAULT_ID" ]] && die "Vault ID is required."
 [[ ! "$FB_VAULT_ID" =~ ^[0-9]+$ ]] && die "Vault ID must be a non-negative integer (got: '$FB_VAULT_ID')."
 

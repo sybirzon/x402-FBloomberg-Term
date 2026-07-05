@@ -76,7 +76,7 @@ Create `~/.bloomberg-x402.env` with `chmod 600` and these values filled in:
 FIREBLOCKS_API_KEY=<your UUID>
 FIREBLOCKS_BASE_URL=<https://api.fireblocks.io OR https://sandbox-api.fireblocks.io>
 FIREBLOCKS_PEM_PATH=<absolute path to your fireblocks PEM, e.g. /Users/you/fireblocks_api_secret.pem>
-FIREBLOCKS_VAULT_ID=<numeric vault id, e.g. 0 or 2>
+FIREBLOCKS_VAULT_ID=<any non-negative integer, e.g. 0, 1, 2, 10>
 FIREBLOCKS_VAULT_DEPOSIT_ADDR=<your vault's Base Sepolia USDC deposit address, 0x…>
 # Optional — leave blank or unset to disable the Dynamic panel in the dashboard
 DYNAMIC_ENV_ID=<your Dynamic Environment ID UUID, or blank>
