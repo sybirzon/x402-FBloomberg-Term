@@ -169,6 +169,7 @@ export default function App() {
 
   // Poll for MCP agent purchases and display them in the dashboard
   useEffect(() => {
+    const pageLoadTs = Date.now();
     let lastPremiumTs = 0;
     let lastSpcxTs = 0;
     let lastPremiumStepCount = 0;
@@ -198,7 +199,7 @@ export default function App() {
           if (premium.data && premium.ts && premium.ts !== lastPremiumTs) {
             lastPremiumTs = premium.ts;
             setPremiumData(premium.data as PremiumData);
-            if (premium.payer) {
+            if (premium.payer && premium.ts > pageLoadTs) {
               premiumSettlementGen.current += 1;
               const gen = premiumSettlementGen.current;
               const bal = await getUsdcBalance(premium.payer, USDC_ADDRESS, BASE_SEPOLIA_RPC).catch(() => null);
@@ -220,7 +221,7 @@ export default function App() {
           if (spcx.data && spcx.ts && spcx.ts !== lastSpcxTs) {
             lastSpcxTs = spcx.ts;
             setSpcxData(spcx.data as SpcxData);
-            if (spcx.payer) {
+            if (spcx.payer && spcx.ts > pageLoadTs) {
               spcxSettlementGen.current += 1;
               const gen = spcxSettlementGen.current;
               const bal = await getUsdcBalance(spcx.payer, USDC_ADDRESS, BASE_SEPOLIA_RPC).catch(() => null);
