@@ -106,6 +106,17 @@ else
   ok "JWT key already present — skipping scaffold"
 fi
 
+# ── 3a2. Workspace type (Sandbox vs production testnet) ──────────────────────
+echo ""
+echo "  Workspace type:"
+echo "    1) Sandbox (sandbox-api.fireblocks.io) — recommended for first-time setup"
+echo "    2) Production testnet (api.fireblocks.io)"
+read -rp "  Choice [1/2, default 1]: " FB_WORKSPACE_CHOICE
+case "${FB_WORKSPACE_CHOICE:-1}" in
+  2) FB_BASE_URL="https://api.fireblocks.io" ;;
+  *) FB_BASE_URL="https://sandbox-api.fireblocks.io" ;;
+esac
+
 # ── 3b. Fireblocks API key ────────────────────────────────────────────────────
 echo ""
 read -rp "  Fireblocks API key: " FB_API_KEY
@@ -137,10 +148,10 @@ fi
 
 # ── 3d. Write facilitator.json ────────────────────────────────────────────────
 info "Writing config/facilitator.json..."
-python3 - "$CONFIG_FILE" "$FB_API_KEY" "$FB_VAULT_ID" <<'PYEOF'
+python3 - "$CONFIG_FILE" "$FB_API_KEY" "$FB_VAULT_ID" "$FB_BASE_URL" <<'PYEOF'
 import json, sys
 
-config_path, api_key, vault_id = sys.argv[1], sys.argv[2], sys.argv[3]
+config_path, api_key, vault_id, base_url = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 
 config = {
   "tenant_id": "default",
@@ -168,7 +179,7 @@ config = {
         "api_key": api_key,
         "api_secret_path": "./secrets/fireblocks.pem",
         "receiver_vault": vault_id,
-        "base_url": "https://api.fireblocks.io",
+        "base_url": base_url,
         "deposit_address_cache": {}
       },
       "api_keys": [],
@@ -271,20 +282,20 @@ export X402_URL="http://localhost:3001"
 # Mint merchant API key
 # Note 1: 2>&1 (not 2>/dev/null) so CLI errors are captured into MINT_OUT and shown to the user
 #         if mint fails — important if a future facilitator release renames a flag.
-# Note 2: uses ts-node (already installed in node_modules) to avoid npx fetching tsx
-#         from the registry, which fails when the latest dist-tag points to an unpublished version.
+# Note 2: uses ./node_modules/.bin/tsx directly (pinned 4.22.4, installed via npm install)
+#         to avoid npx fetching tsx from the registry — tsx@4.23.0 is not yet published.
 info "Minting merchant API key..."
-MINT_OUT=$(cd "$FACILITATOR_DIR" && ./node_modules/.bin/ts-node src/cli/index.ts keys create \
+MINT_OUT=$(cd "$FACILITATOR_DIR" && ./node_modules/.bin/tsx src/cli/index.ts keys create \
   --scopes process-payments --label merchant 2>&1) \
   || { echo "$MINT_OUT"; die "Failed to mint API key (see CLI output above)"; }
 
-MERCHANT_KEY=$(echo "$MINT_OUT" | grep -oE 'x402_[a-zA-Z0-9_]+' | head -1)
+MERCHANT_KEY=$(echo "$MINT_OUT" | grep -oE 'x402_[a-zA-Z0-9_-]+' | head -1)
 [[ -z "$MERCHANT_KEY" ]] && { echo "$MINT_OUT"; die "Could not parse API key from CLI output above."; }
 ok "Merchant API key: ${MERCHANT_KEY:0:16}…"
 
 # Create Premium product ($0.01)
 info "Creating Premium product (\$0.01 USDC)..."
-PREMIUM_OUT=$(cd "$FACILITATOR_DIR" && ./node_modules/.bin/ts-node src/cli/index.ts products add \
+PREMIUM_OUT=$(cd "$FACILITATOR_DIR" && ./node_modules/.bin/tsx src/cli/index.ts products add \
   --name Premium \
   --endpoint /premium \
   --asset USDC_BASECHAIN_ETH_TEST5_8SH8 \
@@ -428,13 +439,13 @@ echo ""
 echo "Open 3 terminal tabs and run:"
 echo ""
 echo -e "  ${BOLD}Tab 1 — Facilitator${RESET}"
-echo "    cd x402-facilitator && npm run dev"
+echo "    cd $ROOT/x402-facilitator && npm run dev"
 echo ""
 echo -e "  ${BOLD}Tab 2 — Merchant${RESET}"
-echo "    cd merchant && npm run dev"
+echo "    cd $ROOT/merchant && npm run dev"
 echo ""
 echo -e "  ${BOLD}Tab 3 — Dashboard${RESET}"
-echo "    cd dashboard && npm run dev"
+echo "    cd $ROOT/dashboard && npm run dev"
 echo "    Open http://localhost:5174"
 echo ""
 echo "The MCP server starts automatically when Claude Code opens this project."
