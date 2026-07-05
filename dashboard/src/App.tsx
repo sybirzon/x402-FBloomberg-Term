@@ -449,8 +449,8 @@ export default function App() {
       <header className="header">
         <div className="header-title">
           <svg className="bb-logo" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="44" height="44" rx="4" fill="#F47521"/>
-            <path d="M10 9h12.5c4.5 0 7.5 2.2 7.5 6 0 2.2-1.1 3.9-2.8 4.9 2.4.9 3.8 2.8 3.8 5.4 0 4.2-3.2 6.7-8.2 6.7H10V9zm5 9.5h6.8c1.8 0 2.9-.9 2.9-2.4s-1.1-2.4-2.9-2.4H15v4.8zm0 9.8h7.2c2 0 3.2-1 3.2-2.7s-1.2-2.7-3.2-2.7H15v5.4z" fill="white"/>
+            <rect width="44" height="44" rx="4" fill="#1E3A5F"/>
+            <polygon points="22,11 36,33 8,33" fill="white"/>
           </svg>
           <div className="header-text">
             <span className="header-brand">FBLOOMBERG</span>
