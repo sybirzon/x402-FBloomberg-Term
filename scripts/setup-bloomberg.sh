@@ -52,6 +52,33 @@ else
   ok "x402-facilitator already present"
 fi
 
+# ── 2b. Patch x402-facilitator to use tsx instead of ts-node ─────────────────
+# jose v6 (used by the facilitator) is ESM-only and cannot be loaded by ts-node
+# in CJS mode. tsx handles ESM/CJS interop transparently. We pin 4.22.4 because
+# 4.23.0 is listed as the npm latest dist-tag but the tarball is not published.
+info "Patching x402-facilitator to use tsx (ESM/CJS interop fix)..."
+python3 - "$ROOT/x402-facilitator/package.json" <<'PYEOF'
+import json, sys
+
+path = sys.argv[1]
+with open(path) as f:
+    pkg = json.load(f)
+
+# Add tsx as pinned devDependency
+pkg.setdefault('devDependencies', {})['tsx'] = '4.22.4'
+
+# Replace ts-node with tsx in all npm scripts
+for key, val in pkg.get('scripts', {}).items():
+    if isinstance(val, str):
+        pkg['scripts'][key] = val.replace('ts-node ', 'tsx ')
+
+with open(path, 'w') as f:
+    json.dump(pkg, f, indent=2)
+    f.write('\n')
+print("  patched")
+PYEOF
+ok "x402-facilitator patched (tsx@4.22.4)"
+
 # ── 3. Install dependencies ───────────────────────────────────────────────────
 hr
 info "Installing dependencies for all services..."
@@ -66,7 +93,7 @@ done
 
 # The merchant imports @x402/express via file:../x402-facilitator/packages/x402-express.
 # That package ships TypeScript sources only — npm install links the source dir into
-# merchant/node_modules but doesn't build dist/, so ts-node fails to compile the merchant
+# merchant/node_modules but doesn't build dist/, so the merchant fails to resolve it
 # at runtime ("Cannot find module '@x402/express'"). Build it here, once.
 info "Building @x402/express workspace package..."
 (cd "$ROOT/x402-facilitator" && npm run build --workspace=@x402/express --silent) \
@@ -216,9 +243,9 @@ info "Starting facilitator briefly to mint credentials via CLI..."
 # Run the facilitator WITHOUT nodemon during setup. nodemon watches files and
 # restarts the server on every change to config/facilitator.json — and every CLI
 # admin call (mint token, mint key, add product) mutates that file. The next CLI
-# call then hits a server in mid-restart → "fetch failed". ts-node directly gives
+# call then hits a server in mid-restart → "fetch failed". tsx directly gives
 # us a stable server for the duration of Step 2.
-(cd "$FACILITATOR_DIR" && ./node_modules/.bin/ts-node src/index.ts > /tmp/bloomberg-setup-facilitator.log 2>&1) &
+(cd "$FACILITATOR_DIR" && ./node_modules/.bin/tsx src/index.ts > /tmp/bloomberg-setup-facilitator.log 2>&1) &
 FAC_PID=$!
 
 # Cleanup trap — runs on success, failure, and Ctrl+C alike, so any subsequent
@@ -308,7 +335,7 @@ ok "Premium product: $PREMIUM_ID"
 
 # Create SPCX product ($0.02)
 info "Creating SPCX product (\$0.02 USDC)..."
-SPCX_OUT=$(cd "$FACILITATOR_DIR" && ./node_modules/.bin/ts-node src/cli/index.ts products add \
+SPCX_OUT=$(cd "$FACILITATOR_DIR" && ./node_modules/.bin/tsx src/cli/index.ts products add \
   --name SPCX \
   --endpoint /spcx \
   --asset USDC_BASECHAIN_ETH_TEST5_8SH8 \
