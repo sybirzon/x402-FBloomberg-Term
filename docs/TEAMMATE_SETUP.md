@@ -54,11 +54,10 @@ You need a testnet-capable Fireblocks workspace.
 
 ### A4. Faucets — fund the vault AND fund a new agent wallet later
 
-The receiver side (your Fireblocks vault):
-- Base Sepolia ETH (≥0.05): <https://www.coinbase.com/faucets/base-ethereum-sepolia-faucet> — for the Fireblocks-side relayer gas.
-- Base Sepolia USDC (any small amount): <https://faucet.circle.com> — receivable USDC at the vault's deposit address.
+The receiver side (your Fireblocks vault) only needs ETH for gas — it will accumulate USDC as payments settle, no pre-funding required:
+- Base Sepolia ETH (≥0.05): <https://www.coinbase.com/faucets/base-ethereum-sepolia-faucet> — pays gas for the `receiveWithAuthorization` contract call submitted by the facilitator.
 
-You will fund the **agent wallet** (the payer) AFTER the setup script generates it — see Part B Step 7.
+You will fund the **agent wallet** (the payer) with both ETH and USDC AFTER the setup script generates it — see Part B Step 7.
 
 ### A5. (Optional) Dynamic.xyz embedded-wallet panel
 
