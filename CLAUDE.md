@@ -29,8 +29,7 @@ dashboard/src/                  ← React UI: shows purchased data, polls for MC
   - A vault named `402` with a Base Sepolia USDC deposit address
   - An API key and RSA private key (`.pem`)
 - Testnet funds in the agent wallet:
-  - Base Sepolia ETH (for gas): [Coinbase faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet)
-  - Base Sepolia USDC: [Circle faucet](https://faucet.circle.com/)
+  - Base Sepolia USDC: [Circle faucet](https://faucet.circle.com/) — no ETH needed (payments are signed off-chain)
 
 ## Fireblocks Workspace Setup
 
@@ -105,8 +104,7 @@ The file can have a `.key` or `.pem` extension — both are PEM-encoded. Either 
 #### 4. Fund the Agent Wallet
 
 Get testnet funds for the wallet whose private key is in `agent/.env`:
-- **Base Sepolia ETH** (gas): [Coinbase faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet)
-- **Base Sepolia USDC**: [Circle faucet](https://faucet.circle.com/)
+- **Base Sepolia USDC**: [Circle faucet](https://faucet.circle.com/) — no ETH needed (payments are signed off-chain via EIP-3009)
 
 ---
 
@@ -292,7 +290,7 @@ The payment payload must include `resource: { url }`. This is already fixed in `
 `SETTLEMENT_MODE=optimistic` means the merchant returns 200 before the Fireblocks transaction lands. The on-chain USDC transfer happens seconds to minutes later. Check the Fireblocks console for pending contract calls.
 
 **No Fireblocks signing request appearing**
-After the first purchase, open the Fireblocks mobile app or console and approve the pending `transferWithAuthorization` contract call. Each purchase (MCP or dashboard) creates a separate signing request — approve all of them. Unsigned transactions silently block settlement.
+On Sandbox, the API co-signer approves transactions automatically — no manual action needed. On a production testnet workspace, open the Fireblocks mobile app or console and approve the pending `transferWithAuthorization` contract call. Each purchase creates a separate signing request — approve all of them. Unsigned transactions silently block settlement.
 
 **Dashboard not showing MCP-purchased data**
 The dashboard polls `GET /agent-data?endpoint=/premium` and `GET /agent-data?endpoint=/spcx` every 3 seconds. If data isn't appearing, confirm the merchant is running on port 3010 and was started with the latest code (restart if in doubt).

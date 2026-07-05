@@ -226,7 +226,7 @@ cleanup_facilitator() {
 }
 trap cleanup_facilitator EXIT
 
-# Poll for readiness instead of a flat sleep — npm → nodemon → tsx → node can take
+# Poll for readiness instead of a flat sleep — npm → nodemon → ts-node → node can take
 # 10–20s on a cold start (esbuild + first ts-node compile).
 info "Waiting for facilitator on :3001 (up to 30s)..."
 READY=0
@@ -271,10 +271,10 @@ export X402_URL="http://localhost:3001"
 # Mint merchant API key
 # Note 1: 2>&1 (not 2>/dev/null) so CLI errors are captured into MINT_OUT and shown to the user
 #         if mint fails — important if a future facilitator release renames a flag.
-# Note 2: --yes on npx so the "Need to install ... Ok to proceed? (y)" prompt doesn't
-#         hang silently the first time tsx isn't cached.
+# Note 2: uses ts-node (already installed in node_modules) to avoid npx fetching tsx
+#         from the registry, which fails when the latest dist-tag points to an unpublished version.
 info "Minting merchant API key..."
-MINT_OUT=$(cd "$FACILITATOR_DIR" && npx --yes tsx src/cli/index.ts keys create \
+MINT_OUT=$(cd "$FACILITATOR_DIR" && ./node_modules/.bin/ts-node src/cli/index.ts keys create \
   --scopes process-payments --label merchant 2>&1) \
   || { echo "$MINT_OUT"; die "Failed to mint API key (see CLI output above)"; }
 
@@ -284,7 +284,7 @@ ok "Merchant API key: ${MERCHANT_KEY:0:16}…"
 
 # Create Premium product ($0.01)
 info "Creating Premium product (\$0.01 USDC)..."
-PREMIUM_OUT=$(cd "$FACILITATOR_DIR" && npx --yes tsx src/cli/index.ts products add \
+PREMIUM_OUT=$(cd "$FACILITATOR_DIR" && ./node_modules/.bin/ts-node src/cli/index.ts products add \
   --name Premium \
   --endpoint /premium \
   --asset USDC_BASECHAIN_ETH_TEST5_8SH8 \
@@ -297,7 +297,7 @@ ok "Premium product: $PREMIUM_ID"
 
 # Create SPCX product ($0.02)
 info "Creating SPCX product (\$0.02 USDC)..."
-SPCX_OUT=$(cd "$FACILITATOR_DIR" && npx --yes tsx src/cli/index.ts products add \
+SPCX_OUT=$(cd "$FACILITATOR_DIR" && ./node_modules/.bin/ts-node src/cli/index.ts products add \
   --name SPCX \
   --endpoint /spcx \
   --asset USDC_BASECHAIN_ETH_TEST5_8SH8 \
@@ -333,8 +333,8 @@ ok "merchant/.env written"
 hr
 echo -e "${BOLD}Step 4 of 4 — Agent wallet${RESET}"
 echo ""
-echo "The agent signs EIP-3009 payments. It needs a Base Sepolia wallet"
-echo "funded with USDC (for payments) and ETH (for gas)."
+echo "The agent signs EIP-3009 payments off-chain (no gas). It needs a Base Sepolia"
+echo "wallet funded with USDC only."
 echo ""
 echo "Options:"
 echo "  1) Generate a new wallet (you'll need to fund it)"
@@ -360,8 +360,7 @@ else
   echo "  Address:     ${AGENT_ADDR}"
   echo "  Private key: ${AGENT_PK}"
   echo ""
-  echo "  Fund this address with Base Sepolia ETH and USDC before running purchases:"
-  echo "    ETH:  https://www.coinbase.com/faucets/base-ethereum-sepolia-faucet"
+  echo "  Fund this address with Base Sepolia USDC before running purchases:"
   echo "    USDC: https://faucet.circle.com"
   echo ""
   read -rp "  Press Enter to continue..."
@@ -441,6 +440,4 @@ echo ""
 echo "The MCP server starts automatically when Claude Code opens this project."
 echo "Run /mcp in Claude Code to confirm bloomberg-payments is connected."
 echo ""
-warn "IMPORTANT: Approve Fireblocks signing requests in the mobile app or console"
-warn "           when prompted after each purchase."
 echo ""
