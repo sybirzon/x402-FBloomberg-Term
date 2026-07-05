@@ -32,6 +32,94 @@ dashboard/src/                  ← React UI: shows purchased data, polls for MC
   - Base Sepolia ETH (for gas): [Coinbase faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet)
   - Base Sepolia USDC: [Circle faucet](https://faucet.circle.com/)
 
+## Fireblocks Workspace Setup
+
+There are two types of Fireblocks workspaces you can use with this demo. Choose based on what you have access to.
+
+---
+
+### Option A — Fireblocks Sandbox (recommended for first-time setup)
+
+Sandbox is a free, isolated environment with an **API co-signer** that automatically approves transactions — no policy engine, no manual signing required. Transactions settle instantly without needing Fireblocks mobile app approval.
+
+**Sign up:** [sandbox.fireblocks.io](https://sandbox.fireblocks.io)
+
+**base_url:** `https://sandbox-api.fireblocks.io`
+
+**Policy:** none needed — the API co-signer auto-approves all transactions.
+
+---
+
+### Option B — Fireblocks Testnet Workspace (production workspace with testnet assets)
+
+A standard Fireblocks workspace pointed at testnet networks. Uses the production API and the full policy engine — transactions require explicit policy rules and mobile app / console approval.
+
+**base_url:** `https://api.fireblocks.io`
+
+**Policy:** you must configure two rules in **Settings → Transaction Policy**:
+- `CONTRACT_CALL` — allows the facilitator to submit the on-chain `receiveWithAuthorization` transaction
+- `Typed Message` — allows EIP-712 signing of the `TransferWithAuthorization` payload (EIP-3009)
+
+Without both rules, settlements will fail with `BLOCKED_BY_POLICY`. Signing is configurable — you can set up an API co-signer for automatic approval or require manual signing via the mobile app or console.
+
+---
+
+### Setup Steps (both options)
+
+#### 1. Create an API User
+
+1. Go to **Settings → Users → Add User**
+2. Select role **Editor** (required to submit transactions)
+3. Generate an RSA key pair and upload the public key (CSR) during setup
+4. Save the private key — you'll need it as `fireblocks.pem`
+5. Copy the **API Key UUID** shown after creation (e.g. `cf51eb2a-70c2-4e58-a160-d3fa53ae72ce`)
+
+#### 2. Find your Vault Account ID
+
+In **Accounts**, note the numeric ID of the vault to use as the settlement receiver (e.g. `1`). Make sure it has a Base Sepolia USDC deposit address — if not, add the `USDC_BASECHAIN_ETH_TEST5` asset to that vault.
+
+#### 3. Configure the Facilitator
+
+Update `x402-facilitator/config/facilitator.json`:
+
+```json
+{
+  "configurations": [{
+    "fireblocks": {
+      "api_key": "<your-api-user-uuid>",
+      "api_secret_path": "./secrets/fireblocks.pem",
+      "receiver_vault": "<your-vault-id>",
+      "base_url": "https://sandbox-api.fireblocks.io"
+    }
+  }]
+}
+```
+
+Copy your private key to:
+```
+x402-facilitator/secrets/fireblocks.pem
+```
+
+The file can have a `.key` or `.pem` extension — both are PEM-encoded. Either rename it to `fireblocks.pem`, or update `api_secret_path` to match your filename.
+
+#### 4. Fund the Agent Wallet
+
+Get testnet funds for the wallet whose private key is in `agent/.env`:
+- **Base Sepolia ETH** (gas): [Coinbase faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet)
+- **Base Sepolia USDC**: [Circle faucet](https://faucet.circle.com/)
+
+---
+
+### Switching Workspaces via Claude Code
+
+To switch to a different workspace (new API user or vault), just tell Claude:
+
+```
+Change the Fireblocks workspace — API user is <uuid> and vault ID is <id>
+```
+
+Claude will update `api_key` and `receiver_vault` in `facilitator.json`, preserving the previous values as `_prev_api_key` / `_prev_receiver_vault` for easy rollback. Don't forget to replace `secrets/fireblocks.pem` with the private key for the new API user and restart the facilitator.
+
 ## Project Structure
 
 ```
