@@ -1,7 +1,7 @@
 {
   "_comment": "TEMPLATE — scripts/setup-fbloomberg.sh substitutes the placeholder token with the absolute path to this repo's agent/ directory and writes the result to .mcp.json (gitignored). 'node' is resolved via PATH so we don't pin /usr/local/bin/node.",
   "mcpServers": {
-    "bloomberg-payments": {
+    "fbloomberg-payments": {
       "command": "node",
       "args": [
         "__AGENT_DIR__/node_modules/tsx/dist/cli.mjs",

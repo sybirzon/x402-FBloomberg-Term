@@ -2,14 +2,14 @@
 // CJS variant of the @dynamic-labs-sdk/metamask stub. See ./index.js.
 
 class MetaMaskDisplayUriMissingError extends Error {
-  constructor(message = "MetaMask display URI missing (stubbed in Bloomberg demo)") {
+  constructor(message = "MetaMask display URI missing (stubbed in FBloomberg demo)") {
     super(message);
     this.name = "MetaMaskDisplayUriMissingError";
   }
 }
 
 class MetaMaskWalletNotConnectedError extends Error {
-  constructor(message = "MetaMask wallet not connected (stubbed in Bloomberg demo)") {
+  constructor(message = "MetaMask wallet not connected (stubbed in FBloomberg demo)") {
     super(message);
     this.name = "MetaMaskWalletNotConnectedError";
   }

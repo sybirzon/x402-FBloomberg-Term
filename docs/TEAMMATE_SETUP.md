@@ -65,12 +65,12 @@ The dashboard has an **optional** Dynamic.xyz embedded-wallet UI panel. If you d
 
 If you do want it:
 1. Sign up at <https://app.dynamic.xyz>.
-2. Create an Environment (e.g. "Bloomberg demo").
+2. Create an Environment (e.g. "FBloomberg demo").
 3. Copy the Environment ID (UUID).
 
 ### A6. Stage credentials in a single env file (NOT inside any repo)
 
-Create `~/.bloomberg-x402.env` with `chmod 600` and these values filled in:
+Create `~/.fbloomberg-x402.env` with `chmod 600` and these values filled in:
 
 ```env
 FIREBLOCKS_API_KEY=<your UUID>
@@ -93,12 +93,12 @@ Open Claude Code in your home directory. Paste **everything** between the dashes
 ```
 I want to set up the FBloomberg Terminal × x402 micropayments demo on this laptop.
 
-The repo is github.com/sybirzon/x402-Bloomberg-Term. I have already completed Part A
+The repo is github.com/sybirzon/x402-FBloomberg-Term. I have already completed Part A
 of the teammate setup guide (toolchain installed, Fireblocks vault + API key + PEM
-ready, faucets done, ~/.bloomberg-x402.env staged with my workspace identifiers).
+ready, faucets done, ~/.fbloomberg-x402.env staged with my workspace identifiers).
 
 Drive these steps end-to-end. Don't ask me to confirm between steps — just do them
-and report what each step did. Treat ~/.bloomberg-x402.env as the only source of
+and report what each step did. Treat ~/.fbloomberg-x402.env as the only source of
 workspace credentials; don't hardcode anything elsewhere.
 
 ==================================================================
@@ -106,7 +106,7 @@ STEP 1 — Verify prerequisites
 ==================================================================
 - node -v >= 20 and npm -v >= 10
 - git installed
-- ~/.bloomberg-x402.env exists, is mode 600, defines:
+- ~/.fbloomberg-x402.env exists, is mode 600, defines:
     FIREBLOCKS_API_KEY, FIREBLOCKS_BASE_URL, FIREBLOCKS_PEM_PATH,
     FIREBLOCKS_VAULT_ID, FIREBLOCKS_VAULT_DEPOSIT_ADDR
     (DYNAMIC_ENV_ID is optional — fine to be missing or blank)
@@ -117,8 +117,8 @@ If anything is missing, stop and tell me.
 ==================================================================
 STEP 2 — Clone the demo repo
 ==================================================================
-- mkdir -p ~/x402-Bloomberg-Term's parent dir if needed (this is just $HOME)
-- git clone git@github.com:sybirzon/x402-Bloomberg-Term ~/x402-Bloomberg-Term
+- mkdir -p ~/x402-FBloomberg-Term's parent dir if needed (this is just $HOME)
+- git clone git@github.com:sybirzon/x402-FBloomberg-Term ~/x402-FBloomberg-Term
   (fall back to https if SSH fails)
 
 ==================================================================
@@ -126,24 +126,24 @@ STEP 3 — Pre-flight checks on the cloned repo
 ==================================================================
 Verify before running the setup script (these are known papercuts the script
 handles, but worth confirming):
-- ~/x402-Bloomberg-Term/dashboard/.npmrc exists with legacy-peer-deps=true
+- ~/x402-FBloomberg-Term/dashboard/.npmrc exists with legacy-peer-deps=true
   (works around an @dynamic-labs-sdk/react-hooks peer conflict)
-- ~/x402-Bloomberg-Term/dashboard/stubs/dynamic-metamask/ exists with
+- ~/x402-FBloomberg-Term/dashboard/stubs/dynamic-metamask/ exists with
   package.json + index.js + index.cjs
   (no-op stub for @dynamic-labs-sdk/metamask; the dashboard postinstall
   expects this dir; some clones may be missing it. If missing, ask me to fix.)
-- ~/x402-Bloomberg-Term/.mcp.json.template exists
+- ~/x402-FBloomberg-Term/.mcp.json.template exists
   (template the setup script substitutes to produce a local .mcp.json with
   absolute paths matching this machine; if missing, MCP integration breaks.)
 
 ==================================================================
 STEP 4 — Run the setup script
 ==================================================================
-- cd ~/x402-Bloomberg-Term
+- cd ~/x402-FBloomberg-Term
 - bash scripts/setup-fbloomberg.sh
 
 The script will prompt for:
-  • Fireblocks API key             → use $FIREBLOCKS_API_KEY from ~/.bloomberg-x402.env
+  • Fireblocks API key             → use $FIREBLOCKS_API_KEY from ~/.fbloomberg-x402.env
   • Fireblocks vault ID            → use $FIREBLOCKS_VAULT_ID
   • PEM file path                  → use $FIREBLOCKS_PEM_PATH (paste the absolute path)
   • Wallet choice (1/2)            → choose 1 (generate fresh agent wallet)
@@ -176,9 +176,9 @@ STEP 6 — Confirm @x402/express was built
 ==================================================================
 setup-fbloomberg.sh builds the @x402/express workspace package automatically as
 part of Step 4. Just verify dist/ exists:
-    ls ~/x402-Bloomberg-Term/x402-facilitator/packages/x402-express/dist
+    ls ~/x402-FBloomberg-Term/x402-facilitator/packages/x402-express/dist
 If for some reason it's missing, run:
-    cd ~/x402-Bloomberg-Term/x402-facilitator && npm run build --workspace=@x402/express
+    cd ~/x402-FBloomberg-Term/x402-facilitator && npm run build --workspace=@x402/express
 
 ==================================================================
 STEP 7 — Stop, tell me to fund the new agent wallet, wait for me
@@ -196,11 +196,11 @@ STEP 8 — Start the three services
 Once I confirm the agent is funded, start:
 
 Terminal-style (you launch in the background, log to /tmp):
-  1. cd ~/x402-Bloomberg-Term/x402-facilitator && npm run dev  > /tmp/bloomberg-facilitator.log 2>&1 &
+  1. cd ~/x402-FBloomberg-Term/x402-facilitator && npm run dev  > /tmp/fbloomberg-facilitator.log 2>&1 &
      Wait until http://localhost:3001/ returns ANY HTTP status (up to 30s).
-  2. cd ~/x402-Bloomberg-Term/merchant && npm run dev  > /tmp/bloomberg-merchant.log 2>&1 &
+  2. cd ~/x402-FBloomberg-Term/merchant && npm run dev  > /tmp/fbloomberg-merchant.log 2>&1 &
      Wait until http://localhost:3010/ returns 200 (up to 30s).
-  3. cd ~/x402-Bloomberg-Term/dashboard && npm run dev  > /tmp/bloomberg-dashboard.log 2>&1 &
+  3. cd ~/x402-FBloomberg-Term/dashboard && npm run dev  > /tmp/fbloomberg-dashboard.log 2>&1 &
      Wait until http://localhost:5174/ returns 200 (up to 30s).
 
 The merchant MUST be started AFTER the facilitator is reachable, or it'll log
@@ -229,7 +229,7 @@ Print:
 STEP 11 — Security sanity check
 ==================================================================
 Verify and report any deviation:
-  - ~/.bloomberg-x402.env             chmod 600, not inside any git repo
+  - ~/.fbloomberg-x402.env             chmod 600, not inside any git repo
   - FIREBLOCKS_PEM_PATH               chmod 600
   - x402-facilitator/secrets/         not in git (gitignored)
   - x402-facilitator/config/facilitator.json   gitignored
@@ -251,12 +251,12 @@ for p in 3001 3010 5174; do PIDS=$(lsof -ti :$p 2>/dev/null); [ -n "$PIDS" ] && 
 
 To restart on a subsequent day (no re-setup needed):
 ```bash
-cd ~/x402-Bloomberg-Term && bash scripts/start-all.sh
+cd ~/x402-FBloomberg-Term && bash scripts/start-all.sh
 ```
 
 To wipe and start fresh:
 ```bash
-cd ~/x402-Bloomberg-Term
+cd ~/x402-FBloomberg-Term
 rm -rf x402-facilitator
 rm -f merchant/.env agent/.env
 bash scripts/setup-fbloomberg.sh
@@ -268,7 +268,7 @@ Your Fireblocks vault balances survive a repo wipe — they live in your Fireblo
 
 ## Security guardrails
 
-- All secrets live in `~/.bloomberg-x402.env`, the PEM file, and `.env` files — all `chmod 600`. None of them belong in git.
+- All secrets live in `~/.fbloomberg-x402.env`, the PEM file, and `.env` files — all `chmod 600`. None of them belong in git.
 - The repo's `.gitignore` already covers `.env`, `*.pem`, `*.key`, `secrets/`, and `x402-facilitator/config/facilitator.json`. Don't override these.
 - Demo runs on **Base Sepolia testnet only**. No mainnet keys, no production funds.
 - The agent's local-key signing model is fine for a demo; production deployments should use Fireblocks-side signing (Dynamic Server Wallets or similar) instead of a raw `PRIVATE_KEY=` in `.env`.
@@ -286,13 +286,13 @@ for p in 3001 3010 5174; do
 done
 
 # Facilitator log
-tail -50 /tmp/bloomberg-facilitator.log
+tail -50 /tmp/fbloomberg-facilitator.log
 
 # Merchant log
-tail -50 /tmp/bloomberg-merchant.log
+tail -50 /tmp/fbloomberg-merchant.log
 
 # Check the vault config the facilitator is actually using
-grep receiver_vault ~/x402-Bloomberg-Term/x402-facilitator/config/facilitator.json
+grep receiver_vault ~/x402-FBloomberg-Term/x402-facilitator/config/facilitator.json
 ```
 
 Common failure modes:
@@ -301,4 +301,4 @@ Common failure modes:
 - **Facilitator returns `The Provided Vault Account ID is invalid: <X>`** → `receiver_vault` in `config/facilitator.json` is wrong. Edit it to your numeric vault ID and the facilitator will hot-reload.
 - **Settlement never confirms** → Fireblocks `CONTRACT_CALL` is waiting for approval. Open the Fireblocks mobile app or console and approve.
 
-For unresolved issues, [open an issue on the repo](https://github.com/sybirzon/x402-Bloomberg-Term/issues) or contact security@fireblocks.com for Fireblocks-side problems.
+For unresolved issues, [open an issue on the repo](https://github.com/sybirzon/x402-FBloomberg-Term/issues) or contact security@fireblocks.com for Fireblocks-side problems.

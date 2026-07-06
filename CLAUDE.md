@@ -1,6 +1,6 @@
 # FBloomberg Terminal — x402 Micropayments Demo
 
-An end-to-end demo of AI-native payments using the x402 protocol. An AI agent (Claude via MCP) pays $0.01–$0.02 USDC per request to unlock gated Bloomberg-style market data, settled on-chain via Fireblocks on Base Sepolia.
+An end-to-end demo of AI-native payments using the x402 protocol. An AI agent (Claude via MCP) pays $0.01–$0.02 USDC per request to unlock gated FBloomberg-style market data, settled on-chain via Fireblocks on Base Sepolia.
 
 ## Architecture
 
@@ -123,7 +123,7 @@ Claude will update `api_key` and `receiver_vault` in `facilitator.json`, preserv
 ```
 example/
 ├── .mcp.json                   ← Claude Code MCP server config
-├── agent/                      ← MCP server (Claude tool: purchase_bloomberg, bloomberg_balance)
+├── agent/                      ← MCP server (Claude tool: purchase_fbloomberg, fbloomberg_balance)
 │   ├── src/mcp-server.mts      ← MCP server entry point
 │   ├── src/index.ts            ← CLI test client (npm run dev) — same payment flow, posts steps to dashboard
 │   └── .env
@@ -234,20 +234,20 @@ Open `http://localhost:5174`.
 
 ## Connecting to Claude Code
 
-The `.mcp.json` at the project root registers the `bloomberg-payments` MCP server automatically. When you open this project in Claude Code:
+The `.mcp.json` at the project root registers the `fbloomberg-payments` MCP server automatically. When you open this project in Claude Code:
 
 1. Run `/mcp` to check connection status
 2. If it shows `✘ failed`, run `/mcp` again to reconnect
 3. The server exposes two tools:
-   - `purchase_bloomberg` — pays $0.01–$0.02 USDC and returns market data
-   - `bloomberg_balance` — checks the agent wallet's USDC and ETH balance
+   - `purchase_fbloomberg` — pays $0.01–$0.02 USDC and returns market data
+   - `fbloomberg_balance` — checks the agent wallet's USDC and ETH balance
 
 ## Usage
 
 Once all services are running, ask Claude:
 
 ```
-Use the bloomberg MCP to buy the premium endpoint
+Use the fbloomberg MCP to buy the premium endpoint
 ```
 
 ```
@@ -255,7 +255,7 @@ buy spcx
 ```
 
 ```
-check my bloomberg balance
+check my fbloomberg balance
 ```
 
 Each purchase:
@@ -302,7 +302,7 @@ Restarting the merchant clears the server-side store. The dashboard detects `{ d
 Each MCP purchase (both MCP server and `npm run dev` CLI agent) posts its step-by-step activity (GET, 402, sign, 200) to `/agent-data`. The dashboard replays these steps in the activity log and polls for settlement confirmation automatically. If the activity log shows no entries after an agent run, confirm the merchant is running on port 3010 and the agent `.env` has `MERCHANT_URL` pointing to it.
 
 **"Settlement confirmed" never appears after MCP purchase**
-The dashboard polls `/settlement-status?payer=<agent-wallet>` after each MCP purchase, only accepting confirmations whose `ts` is newer than when the purchase started (prevents stale records from a prior payment triggering a false confirmation). If it never resolves, either the Fireblocks contract call was not approved or the facilitator lost the settlement event. Check `/tmp/bloomberg-facilitator.log` and the Fireblocks console.
+The dashboard polls `/settlement-status?payer=<agent-wallet>` after each MCP purchase, only accepting confirmations whose `ts` is newer than when the purchase started (prevents stale records from a prior payment triggering a false confirmation). If it never resolves, either the Fireblocks contract call was not approved or the facilitator lost the settlement event. Check `/tmp/fbloomberg-facilitator.log` and the Fireblocks console.
 
 **"Settlement confirmed" fires before the Fireblocks contract call is signed**
 This was a known bug caused by the `settlementStore` returning a stale record from a previous payment. It is fixed: the dashboard captures a `startedAt` timestamp before each purchase and only accepts `/settlement-status` responses whose `ts ≥ startedAt - 2s`.
@@ -326,8 +326,8 @@ Where you can see step-by-step output depends on which flow triggered the purcha
 **Following server-side traffic for any flow:**
 
 ```bash
-tail -f /tmp/bloomberg-merchant.log      # HTTP requests, 402/200, facilitator calls
-tail -f /tmp/bloomberg-facilitator.log   # Fireblocks CONTRACT_CALL submission and settlement
+tail -f /tmp/fbloomberg-merchant.log      # HTTP requests, 402/200, facilitator calls
+tail -f /tmp/fbloomberg-facilitator.log   # Fireblocks CONTRACT_CALL submission and settlement
 ```
 
 These show the merchant and facilitator sides of every purchase regardless of which client triggered it, but they do not include the client-side signing steps.
@@ -360,12 +360,12 @@ Each entry in the dashboard has a `▶` expand arrow revealing the full HTTP req
 To start all services, ask Claude:
 
 ```
-start the bloomberg terminal
+start the fbloomberg terminal
 ```
 
-Claude will run `scripts/start-all.sh` which starts the facilitator (port 3001), merchant (port 3010), and dashboard (port 5174) in the background. Logs are written to `/tmp/bloomberg-*.log`.
+Claude will run `scripts/start-all.sh` which starts the facilitator (port 3001), merchant (port 3010), and dashboard (port 5174) in the background. Logs are written to `/tmp/fbloomberg-*.log`.
 
-The MCP server starts automatically via `.mcp.json` — run `/mcp` in Claude Code to confirm `bloomberg-payments` is connected.
+The MCP server starts automatically via `.mcp.json` — run `/mcp` in Claude Code to confirm `fbloomberg-payments` is connected.
 
 To start manually in separate terminals:
 
