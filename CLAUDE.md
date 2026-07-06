@@ -143,7 +143,7 @@ example/
 
 > **Fresh clone?** The `x402-facilitator/` directory is **not included in the repo** — it is cloned from `github.com/fireblocks/x402` by the setup script. Before following the steps below, run:
 > ```bash
-> bash scripts/setup-bloomberg.sh
+> bash scripts/setup-fbloomberg.sh
 > ```
 > This clones the facilitator, installs all dependencies, configures credentials, and generates the agent wallet. The manual steps below are for reference or re-configuration only.
 

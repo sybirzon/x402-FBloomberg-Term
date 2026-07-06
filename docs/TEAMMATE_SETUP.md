@@ -140,7 +140,7 @@ handles, but worth confirming):
 STEP 4 — Run the setup script
 ==================================================================
 - cd ~/x402-Bloomberg-Term
-- bash scripts/setup-bloomberg.sh
+- bash scripts/setup-fbloomberg.sh
 
 The script will prompt for:
   • Fireblocks API key             → use $FIREBLOCKS_API_KEY from ~/.bloomberg-x402.env
@@ -174,7 +174,7 @@ what the script printed.
 ==================================================================
 STEP 6 — Confirm @x402/express was built
 ==================================================================
-setup-bloomberg.sh builds the @x402/express workspace package automatically as
+setup-fbloomberg.sh builds the @x402/express workspace package automatically as
 part of Step 4. Just verify dist/ exists:
     ls ~/x402-Bloomberg-Term/x402-facilitator/packages/x402-express/dist
 If for some reason it's missing, run:
@@ -259,7 +259,7 @@ To wipe and start fresh:
 cd ~/x402-Bloomberg-Term
 rm -rf x402-facilitator
 rm -f merchant/.env agent/.env
-bash scripts/setup-bloomberg.sh
+bash scripts/setup-fbloomberg.sh
 ```
 
 Your Fireblocks vault balances survive a repo wipe — they live in your Fireblocks workspace, not in this repo.

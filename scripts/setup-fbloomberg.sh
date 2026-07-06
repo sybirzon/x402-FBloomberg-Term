@@ -4,7 +4,7 @@
 # Team setup script
 #
 # Repo:     https://github.com/sybirzon/x402-Bloomberg-Term
-# Run once from the repo root:  bash scripts/setup-bloomberg.sh
+# Run once from the repo root:  bash scripts/setup-fbloomberg.sh
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -e
