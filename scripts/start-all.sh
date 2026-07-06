@@ -4,12 +4,12 @@
 #
 # Starts facilitator, merchant, and dashboard in the background.
 # Logs go to /tmp/bloomberg-*.log — tail them to debug.
-# Run setup first if you haven't: bash scripts/setup-bloomberg.sh
+# Run setup first if you haven't: bash scripts/setup-fbloomberg.sh
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [[ ! -d "$ROOT/x402-facilitator" ]]; then
-  echo "x402-facilitator not found — run bash scripts/setup-bloomberg.sh first"
+  echo "x402-facilitator not found — run bash scripts/setup-fbloomberg.sh first"
   exit 1
 fi
 
