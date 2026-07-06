@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm run build *)",
+      "Bash(npm run setup *)",
+      "Bash(npm run dev *)",
+      "Bash(npm --version)",
+      "Bash(git clone *)",
+      "Bash(mkdir -p *)",
+      "Bash(cp *)",
+      "Bash(chmod *)",
+      "Bash(pkill *)",
+      "Bash(kill *)",
+      "Bash(lsof *)",
+      "Bash(curl *)",
+      "Bash(mv *)",
+      "Bash(sed -i *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git fetch *)",
+      "Bash(git rebase *)",
+      "Bash(git checkout *)"
+    ]
+  }
+}
