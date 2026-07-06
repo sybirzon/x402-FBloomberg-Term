@@ -1,7 +1,7 @@
 {
   "name": "@dynamic-labs-sdk/metamask",
   "version": "1.14.0-stub",
-  "description": "Local no-op stub for the Bloomberg x402 demo. The published @dynamic-labs-sdk/metamask only ships up to 1.8.2 and peer-conflicts with client/evm@1.14.x. This stub satisfies the import surface @dynamic-labs-sdk/evm requires without bundling MetaMask code, which the demo does not use.",
+  "description": "Local no-op stub for the FBloomberg x402 demo. The published @dynamic-labs-sdk/metamask only ships up to 1.8.2 and peer-conflicts with client/evm@1.14.x. This stub satisfies the import surface @dynamic-labs-sdk/evm requires without bundling MetaMask code, which the demo does not use.",
   "type": "module",
   "main": "./index.cjs",
   "module": "./index.js",

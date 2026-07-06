@@ -39,7 +39,7 @@ Thumbs.db
 .history/
 
 # ── Personal runbooks (contain workspace-specific UUIDs / addresses) ──────────
-bloombergterminal_x402_demo.md
+fbloombergterminal_x402_demo.md
 *.local.md
 
 # ── MCP config — generated from .mcp.json.template by setup-fbloomberg.sh ──────

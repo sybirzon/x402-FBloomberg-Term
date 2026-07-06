@@ -1,11 +1,11 @@
 /**
- * Bloomberg Payments MCP Server
+ * FBloomberg Payments MCP Server
  *
  * Exposes x402 micropayments as Claude tools.
  *
  * Tools:
- *   purchase_bloomberg   – buy premium or spcx endpoint data
- *   bloomberg_balance    – read wallet USDC / ETH balances
+ *   purchase_fbloomberg   – buy premium or spcx endpoint data
+ *   fbloomberg_balance    – read wallet USDC / ETH balances
  */
 
 import { config as dotenvConfig } from 'dotenv';
@@ -288,10 +288,10 @@ async function purchaseEndpoint(endpoint: 'premium' | 'spcx'): Promise<string> {
 
 // ── MCP server ─────────────────────────────────────────────────────────
 async function main() {
-  const server = new McpServer({ name: 'bloomberg-payments', version: '1.0.0' });
+  const server = new McpServer({ name: 'fbloomberg-payments', version: '1.0.0' });
 
   server.tool(
-    'purchase_bloomberg',
+    'purchase_fbloomberg',
     'Purchase gated FBloomberg Terminal data using an x402 micropayment (EIP-3009 on Base Sepolia).',
     {
       endpoint: z.enum(['premium', 'spcx']).describe(
@@ -310,7 +310,7 @@ async function main() {
   );
 
   server.tool(
-    'bloomberg_balance',
+    'fbloomberg_balance',
     'Check the USDC and ETH balance of the FBloomberg Terminal payment wallet on Base Sepolia.',
     {},
     async () => {

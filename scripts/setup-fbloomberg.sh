@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# Bloomberg Terminal — x402 Micropayments Demo
+# FBloomberg Terminal — x402 Micropayments Demo
 # Team setup script
 #
-# Repo:     https://github.com/sybirzon/x402-Bloomberg-Term
+# Repo:     https://github.com/sybirzon/x402-FBloomberg-Term
 # Run once from the repo root:  bash scripts/setup-fbloomberg.sh
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ die()  { echo -e "${RED}✗  $*${RESET}"; exit 1; }
 hr()   { echo -e "${CYAN}────────────────────────────────────────────────────${RESET}"; }
 
 echo ""
-echo -e "${BOLD}Bloomberg Terminal — x402 Micropayments Demo${RESET}"
+echo -e "${BOLD}FBloomberg Terminal — x402 Micropayments Demo${RESET}"
 echo -e "End-to-end AI-native payments on Base Sepolia via Fireblocks"
 hr
 
@@ -245,7 +245,7 @@ info "Starting facilitator briefly to mint credentials via CLI..."
 # admin call (mint token, mint key, add product) mutates that file. The next CLI
 # call then hits a server in mid-restart → "fetch failed". tsx directly gives
 # us a stable server for the duration of Step 2.
-(cd "$FACILITATOR_DIR" && ./node_modules/.bin/tsx src/index.ts > /tmp/bloomberg-setup-facilitator.log 2>&1) &
+(cd "$FACILITATOR_DIR" && ./node_modules/.bin/tsx src/index.ts > /tmp/fbloomberg-setup-facilitator.log 2>&1) &
 FAC_PID=$!
 
 # Cleanup trap — runs on success, failure, and Ctrl+C alike, so any subsequent
@@ -278,13 +278,13 @@ for _ in $(seq 1 30); do
   fi
   # If the subshell died before becoming ready, bail with the log
   if ! kill -0 "$FAC_PID" 2>/dev/null && ! lsof -ti :3001 >/dev/null 2>&1; then
-    cat /tmp/bloomberg-setup-facilitator.log
+    cat /tmp/fbloomberg-setup-facilitator.log
     die "Facilitator process exited before becoming ready. Log above."
   fi
   sleep 1
 done
 if [[ "$READY" -ne 1 ]]; then
-  cat /tmp/bloomberg-setup-facilitator.log
+  cat /tmp/fbloomberg-setup-facilitator.log
   die "Facilitator did not respond on :3001 within 30s. Log above."
 fi
 ok "Facilitator ready (subshell pid $FAC_PID)"
@@ -476,6 +476,6 @@ echo "    cd $ROOT/dashboard && npm run dev"
 echo "    Open http://localhost:5174"
 echo ""
 echo "The MCP server starts automatically when Claude Code opens this project."
-echo "Run /mcp in Claude Code to confirm bloomberg-payments is connected."
+echo "Run /mcp in Claude Code to confirm fbloomberg-payments is connected."
 echo ""
 echo ""

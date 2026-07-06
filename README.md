@@ -1,6 +1,6 @@
 # FBloomberg Terminal × x402
 
-An end-to-end demo of AI-native micropayments. A Claude Code agent pays **$0.01–$0.02 USDC** per request to unlock gated Bloomberg-style market data, settled on Base Sepolia via Fireblocks using the [x402 protocol](https://x402.org).
+An end-to-end demo of AI-native micropayments. A Claude Code agent pays **$0.01–$0.02 USDC** per request to unlock gated FBloomberg-style market data, settled on Base Sepolia via Fireblocks using the [x402 protocol](https://x402.org).
 
 ```
 Claude Code (MCP) → agent (signs EIP-3009) → merchant (gates /premium, /spcx)
@@ -22,8 +22,8 @@ Claude Code (MCP) → agent (signs EIP-3009) → merchant (gates /premium, /spcx
 ## Quick Start
 
 ```bash
-git clone https://github.com/sybirzon/x402-Bloomberg-Term.git
-cd x402-Bloomberg-Term
+git clone https://github.com/sybirzon/x402-FBloomberg-Term.git
+cd x402-FBloomberg-Term
 ```
 
 Then open the project in Claude Code and follow the [Teammate Setup Guide](docs/TEAMMATE_SETUP.md) — it walks you through credentials, runs the setup script, and starts all services.
@@ -72,7 +72,7 @@ The **Fireblocks vault** (receiver) only needs Base Sepolia ETH for gas — it a
 | Facilitator | 3001 | Verifies x402 payments, settles via Fireblocks |
 | Merchant | 3010 | Express API gating `/premium` and `/spcx` |
 | Dashboard | 5174 | React UI showing purchased data and activity log |
-| MCP server | stdio | Claude Code tool: `purchase_bloomberg`, `bloomberg_balance` |
+| MCP server | stdio | Claude Code tool: `purchase_fbloomberg`, `fbloomberg_balance` |
 
 ## Usage
 
@@ -87,7 +87,7 @@ buy spcx
 ```
 
 ```
-check my bloomberg balance
+check my fbloomberg balance
 ```
 
 ## Further Reading
